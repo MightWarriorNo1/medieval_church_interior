@@ -128,12 +128,15 @@ function addNaveRibs(stone, p, bay) {
     0.1
   );
 
-  const boss = new THREE.SphereGeometry(0.2, 14, 10);
-  boss.translate(0, p.vaultCrown - 0.12, zc);
+  const bossRadius = 0.2;
+  const boss = new THREE.SphereGeometry(bossRadius, 14, 10);
+  // A little air under the soffit, so the sphere doesn't cut through the web.
+  const bossCenter = p.vaultCrown - bossRadius - 0.03;
+  boss.translate(0, bossCenter, zc);
   stone.push(boss);
   const collar = new THREE.TorusGeometry(0.26, 0.045, 6, 16);
   collar.rotateX(Math.PI / 2);
-  collar.translate(0, p.vaultCrown - 0.26, zc);
+  collar.translate(0, bossCenter - 0.14, zc);
   stone.push(collar);
 }
 
@@ -189,8 +192,9 @@ function addAisleRibs(stone, p, bay, side) {
   );
 
   const mid = side * (p.naveHalf + p.aisleWidth / 2);
-  const boss = new THREE.SphereGeometry(0.12, 10, 8);
-  boss.translate(mid, p.aisleCrown - 0.08, zc);
+  const bossRadius = 0.12;
+  const boss = new THREE.SphereGeometry(bossRadius, 10, 8);
+  boss.translate(mid, p.aisleCrown - bossRadius - 0.03, zc);
   stone.push(boss);
 }
 

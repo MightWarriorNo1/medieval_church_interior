@@ -29,11 +29,21 @@ export const DEFAULTS = {
   eyeHeight: 1.65,
 };
 
+/** Lowest crown that still keeps the transverse arch pointed. */
+export function lowestCrown(naveWidth, spring = DEFAULTS.vaultSpring) {
+  const width = clamp(naveWidth, 10, 14);
+  return spring + width / 2 + 0.35;
+}
+
 export function resolveParams(partial = {}) {
   const p = { ...DEFAULTS, ...partial };
-  p.bays = Math.max(4, Math.min(9, Math.round(p.bays)));
+  p.bays = clamp(Math.round(p.bays), 5, 9);
   p.naveWidth = clamp(p.naveWidth, 10, 14);
   p.vaultCrown = clamp(p.vaultCrown, 24, 32);
+  // A rise shorter than half the span folds the crown into a valley.
+  if (p.vaultCrown < lowestCrown(p.naveWidth, p.vaultSpring)) {
+    p.vaultCrown = lowestCrown(p.naveWidth, p.vaultSpring);
+  }
 
   p.naveHalf = p.naveWidth / 2;
   p.length = p.bays * p.bayLength;
@@ -49,7 +59,9 @@ export function resolveParams(partial = {}) {
   p.vaultRise = p.vaultCrown - p.vaultSpring;
   p.wallArchRise = p.wallArchApex - p.vaultSpring;
   p.aisleRise = p.aisleCrown - p.aisleSpring;
-  p.aisleWallApex = p.aisleSpring + p.aisleRise * 0.72;
+  // The aisle's long arch spans a full bay, so it needs at least that much rise.
+  const aisleAlong = Math.max(p.bayLength / 2 + 0.08, p.aisleRise * 0.72);
+  p.aisleWallApex = p.aisleSpring + aisleAlong;
 
   p.roseRadius = 4.5;
   p.roseCenterY = 14.9;

@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { buildChurch } from './buildChurch.js';
 import { mergeParts } from './geom/mesh.js';
-import { DEFAULTS, resolveParams } from './params.js';
+import { DEFAULTS, lowestCrown, resolveParams } from './params.js';
 
 const canvas = document.getElementById('view');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -75,9 +75,14 @@ const widthOut = document.getElementById('width-out');
 const crownOut = document.getElementById('crown-out');
 
 function readParams() {
+  const naveWidth = Number(widthInput.value);
+  const minCrown = lowestCrown(naveWidth);
+  crownInput.min = minCrown.toFixed(2);
+  if (Number(crownInput.value) < minCrown) crownInput.value = minCrown.toFixed(2);
+
   return resolveParams({
     bays: Number(baysInput.value),
-    naveWidth: Number(widthInput.value),
+    naveWidth,
     vaultCrown: Number(crownInput.value),
   });
 }
@@ -107,18 +112,21 @@ function rebuild() {
   showParams();
   const err = document.getElementById('err');
   try {
+    const parts = buildChurch(params);
+    const next = new THREE.Group();
+    const floorMesh = makeMesh(mergeParts(parts.floor), floorMat, false);
+    floorMesh.receiveShadow = true;
+    next.add(makeMesh(mergeParts(parts.stone), stoneMat, true));
+    next.add(makeMesh(mergeParts(parts.dark), darkMat, false));
+    next.add(floorMesh);
+
     if (root) {
       scene.remove(root);
       root.traverse((obj) => {
         if (obj.geometry) obj.geometry.dispose();
       });
     }
-    const parts = buildChurch(params);
-    root = new THREE.Group();
-    root.add(makeMesh(mergeParts(parts.stone), stoneMat, true));
-    root.add(makeMesh(mergeParts(parts.dark), darkMat, false));
-    root.add(makeMesh(mergeParts(parts.floor), floorMat, false));
-    root.children[2].receiveShadow = true;
+    root = next;
     scene.add(root);
     placeLight();
     if (err) err.textContent = '';
@@ -156,11 +164,16 @@ function views() {
 
 function frame(name) {
   const view = views()[name];
+  if (!view) return;
   camera.fov = view.fov;
   camera.position.set(view.pos[0], view.pos[1], view.pos[2]);
   camera.updateProjectionMatrix();
   controls.target.set(view.target[0], view.target[1], view.target[2]);
+  // Damping keeps the last drag. Drop it or the preset eases away.
+  const damping = controls.enableDamping;
+  controls.enableDamping = false;
   controls.update();
+  controls.enableDamping = damping;
 }
 
 function resize() {

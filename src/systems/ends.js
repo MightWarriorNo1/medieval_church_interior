@@ -3,13 +3,25 @@ import { pointedArchHeight, pointedArchPoints, sectionTop } from '../geom/arch.j
 import { hoodProfile, sweepProfile, twoOrderProfile } from '../geom/sweep.js';
 import { put, putBox } from '../geom/mesh.js';
 
+// The hole and the molding around it have to share these, or the stone
+// drifts off the opening the moment one of them gets tweaked.
+const PORTAL = { width: 3.15, jamb: 4.15, rise: 2.55 };
+const AISLE_LIGHT = { sill: 1.8, apex: 8.8, width: 1.2 };
+const EAST_LIGHTS = {
+  centers: [-2.05, 0, 2.05],
+  width: 1.42,
+  sill: 2.4,
+  apex: 19.2,
+};
+const EAST_OCULUS = { y: 22.15, hole: 1.5, ring: 1.32 };
+
 export function addEnds(stone, p) {
   const shape = endShape(p);
   const aisleX = p.naveHalf + p.aisleWidth / 2;
-  addPortal(shape, 3.15, 4.15, 2.55);
+  addPortal(shape, PORTAL.width, PORTAL.jamb, PORTAL.rise);
   addCircleHole(shape, 0, p.roseCenterY, p.roseRadius + 0.12);
-  addLancetHole(shape, -aisleX, 1.8, 8.8, 1.2);
-  addLancetHole(shape, aisleX, 1.8, 8.8, 1.2);
+  addLancetHole(shape, -aisleX, AISLE_LIGHT.sill, AISLE_LIGHT.apex, AISLE_LIGHT.width);
+  addLancetHole(shape, aisleX, AISLE_LIGHT.sill, AISLE_LIGHT.apex, AISLE_LIGHT.width);
 
   const west = new THREE.ExtrudeGeometry(shape, {
     depth: 1.2,
@@ -20,14 +32,12 @@ export function addEnds(stone, p) {
   stone.push(west);
 
   const eastShape = endShape(p);
-  const eastCenters = [-2.05, 0, 2.05];
-  const eastWidth = 1.42;
-  const eastSill = 2.4;
-  const eastApex = 19.2;
-  for (const cx of eastCenters) addLancetHole(eastShape, cx, eastSill, eastApex, eastWidth);
-  addCircleHole(eastShape, 0, 22.15, 1.5);
-  addLancetHole(eastShape, -aisleX, 1.8, 8.8, 1.2);
-  addLancetHole(eastShape, aisleX, 1.8, 8.8, 1.2);
+  for (const cx of EAST_LIGHTS.centers) {
+    addLancetHole(eastShape, cx, EAST_LIGHTS.sill, EAST_LIGHTS.apex, EAST_LIGHTS.width);
+  }
+  addCircleHole(eastShape, 0, EAST_OCULUS.y, EAST_OCULUS.hole);
+  addLancetHole(eastShape, -aisleX, AISLE_LIGHT.sill, AISLE_LIGHT.apex, AISLE_LIGHT.width);
+  addLancetHole(eastShape, aisleX, AISLE_LIGHT.sill, AISLE_LIGHT.apex, AISLE_LIGHT.width);
 
   const east = new THREE.ExtrudeGeometry(eastShape, {
     depth: 1.2,
@@ -123,9 +133,9 @@ function pointedOpening(path, cx, floorY, width, jambY, rise) {
 }
 
 function addPortalArch(stone, p) {
-  const width = 3.15;
-  const jambY = 4.15;
-  const rise = 2.55;
+  const width = PORTAL.width;
+  const jambY = PORTAL.jamb;
+  const rise = PORTAL.rise;
   for (const side of [-1, 1]) {
     const x = side * (width / 2 + 0.28);
     const h = jambY - 0.2;
@@ -203,10 +213,7 @@ function addRose(stone, radius, cy, z) {
 
 function addEastTracery(stone, p) {
   const z = p.length - 0.1;
-  const centers = [-2.05, 0, 2.05];
-  const sill = 2.4;
-  const apex = 19.2;
-  const width = 1.42;
+  const { centers, sill, apex, width } = EAST_LIGHTS;
   const jamb = sill + (apex - sill) * 0.67;
   const rise = apex - jamb;
 
@@ -229,8 +236,8 @@ function addEastTracery(stone, p) {
     stone.push(eye);
   }
 
-  const r = 1.32;
-  const cy = 22.15;
+  const r = EAST_OCULUS.ring;
+  const cy = EAST_OCULUS.y;
   const ring = new THREE.TorusGeometry(r, 0.055, 6, 28);
   ring.translate(0, cy, z);
   stone.push(ring);

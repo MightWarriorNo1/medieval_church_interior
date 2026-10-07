@@ -20,7 +20,7 @@ export function put(list, geo, x = 0, y = 0, z = 0, rotX = 0, rotY = 0, rotZ = 0
   list.push(geo);
 }
 
-/** Box helper that is centred, then moved so its min corner is at the given origin. */
+/** Box centred on x/z, sitting with its bottom on y. */
 export function putBox(list, w, h, d, x, y, z) {
   const geo = new THREE.BoxGeometry(w, h, d);
   geo.translate(x, y + h / 2, z);
@@ -85,7 +85,23 @@ export function variableWall(x, thickness, z0, z1, yBottom, yTop, segments = 16)
     const a = samples[i];
     const b = samples[i + 1];
     if (!a.ok || !b.ok) continue;
-    prism(positions, x0, x1, a.z, a.yb, a.yt, b.z, b.yb, b.yt, i === 0, i === samples.length - 2);
+    // Cap wherever a run starts or stops, not only at the wall's ends.
+    // A window that cuts the middle would otherwise leave the thickness open.
+    const prevSolid = i > 0 && samples[i - 1].ok;
+    const nextSolid = i + 2 < samples.length && samples[i + 2].ok;
+    prism(
+      positions,
+      x0,
+      x1,
+      a.z,
+      a.yb,
+      a.yt,
+      b.z,
+      b.yb,
+      b.yt,
+      !prevSolid,
+      !nextSolid
+    );
   }
 
   const geo = new THREE.BufferGeometry();

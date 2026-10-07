@@ -8,8 +8,10 @@ import * as THREE from 'three';
 export function pointedArchHeight(x, span, rise) {
   const s = span / 2;
   const ax = Math.abs(x);
-  if (ax >= s - 1e-4) return 0;
-  const h = Math.max(rise, 0.05);
+  if (!(span > 0) || ax >= s - 1e-4) return 0;
+  // Centres have to stay on the far side of the crown. Below this the
+  // arch turns inside out and the "crown" is the low point.
+  const h = Math.max(rise, s, 0.05);
   const cx = (h * h - s * s) / (2 * s);
   const radius = Math.hypot(cx, h);
   const centerX = x < 0 ? cx : -cx;

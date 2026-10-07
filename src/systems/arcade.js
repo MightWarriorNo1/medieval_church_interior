@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { pointedArchHeight, pointedArchPoints } from '../geom/arch.js';
-import { hoodProfile, sweepProfile, twoOrderProfile } from '../geom/sweep.js';
+import { sweepProfile, twoOrderProfile } from '../geom/sweep.js';
 import { putBox, variableWall } from '../geom/mesh.js';
 
 export function addArcade(stone, p) {
@@ -45,16 +45,4 @@ function addSideArcade(stone, p, side, bay) {
     p.triforiumSill - 0.02,
     (courseZ0 + courseZ1) / 2
   );
-}
-
-export function addHoodArch(stone, origin, span, rise, binormal, segments = 20) {
-  const points = pointedArchPoints(
-    origin,
-    new THREE.Vector3(0, 0, 1),
-    new THREE.Vector3(0, 1, 0),
-    span,
-    rise,
-    segments
-  );
-  stone.push(sweepProfile(points, hoodProfile(), binormal));
 }

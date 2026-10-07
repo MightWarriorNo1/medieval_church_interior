@@ -7,6 +7,9 @@ import * as THREE from 'three';
  * Vertices are not shared, so the result shades flat — right for moldings.
  */
 export function sweepProfile(points, profile, binormal) {
+  if (!points || points.length < 2 || !profile || profile.length < 3) {
+    return new THREE.BufferGeometry();
+  }
   const bFixed = binormal.clone().normalize();
   const frames = [];
 
