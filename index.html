@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Nave — week 1 bones</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <canvas id="view"></canvas>
+    <section id="hud">
+      <h1>Week 1 — nave bones</h1>
+      <p>Flat grey. The shot to judge is the west door, looking east.</p>
+      <label>Bays <output id="bays-out">7</output><input id="bays" type="range" min="5" max="9" step="1" value="7" /></label>
+      <label>Nave width <output id="width-out">12.0</output><input id="width" type="range" min="10" max="14" step="0.1" value="12" /></label>
+      <label>Crown height <output id="crown-out">27.2</output><input id="crown" type="range" min="24" max="32" step="0.1" value="27.2" /></label>
+      <div class="views">
+        <button type="button" id="view-west">West door</button>
+        <button type="button" id="view-rose">Rose</button>
+        <button type="button" id="view-aisle">Aisle</button>
+      </div>
+      <p class="hint">Drag to orbit. Keys 1, 2, 3 jump to those views.</p>
+      <p id="err"></p>
+    </section>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
