@@ -25,20 +25,27 @@ export function createShafts(uniforms) {
     },
     vertexShader: /* glsl */ `
       varying vec2 vLocal;
+      varying vec3 vNormal;
+      varying vec3 vWorld;
       void main() {
         vLocal = uv;
         vec4 world = modelMatrix * vec4(position, 1.0);
+        vWorld = world.xyz;
+        vNormal = normalize(mat3(modelMatrix) * normal);
         gl_Position = projectionMatrix * viewMatrix * world;
       }
     `,
     fragmentShader: /* glsl */ `
       varying vec2 vLocal;
+      varying vec3 vNormal;
+      varying vec3 vWorld;
       uniform vec3 uColor;
       uniform float uGain;
       void main() {
+        float facing = abs(dot(normalize(vNormal), normalize(cameraPosition - vWorld)));
         float radial = exp(-pow(vLocal.x - 0.5, 2.0) * 10.0);
         float along = smoothstep(0.0, 0.12, vLocal.y) * smoothstep(1.0, 0.62, vLocal.y);
-        float alpha = radial * along * uGain;
+        float alpha = radial * along * uGain * smoothstep(0.08, 0.42, facing);
         if (alpha < 0.01) discard;
         gl_FragColor = vec4(uColor, alpha);
       }
