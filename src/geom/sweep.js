@@ -1,11 +1,6 @@
 import * as THREE from 'three';
 
-/**
- * Sweep a closed profile along a polyline.
- * Profile X runs along the binormal (wall thickness).
- * Profile Y runs toward the intrados (into the opening, mostly downward).
- * Vertices are not shared, so the result shades flat — right for moldings.
- */
+// Profile X is wall thickness, Y points into the opening. Vertices aren't shared, so moldings shade flat.
 export function sweepProfile(points, profile, binormal) {
   if (!points || points.length < 2 || !profile || profile.length < 3) {
     return new THREE.BufferGeometry();
@@ -69,7 +64,7 @@ export function circleProfile(radius, segments = 8) {
   return pts;
 }
 
-/** Two orders: a wide shallow soffit and a narrower inner order. */
+// Wide shallow soffit, then a smaller order inside it.
 export function twoOrderProfile() {
   return [
     [-0.34, 0.02],

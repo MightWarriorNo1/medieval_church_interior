@@ -20,7 +20,7 @@ export function put(list, geo, x = 0, y = 0, z = 0, rotX = 0, rotY = 0, rotZ = 0
   list.push(geo);
 }
 
-/** Box centred on x/z, sitting with its bottom on y. */
+// Box is centred on x/z. y is the bottom, not the middle.
 export function putBox(list, w, h, d, x, y, z) {
   const geo = new THREE.BoxGeometry(w, h, d);
   geo.translate(x, y + h / 2, z);
@@ -61,11 +61,7 @@ export function mergeParts(parts) {
   return merged;
 }
 
-/**
- * A wall volume between two X faces.
- * yBottom / yTop may be numbers or functions of z.
- * Segments where the top is below the bottom are skipped.
- */
+// yBottom / yTop can be numbers or functions of z. A run is skipped where the top drops below the bottom.
 export function variableWall(x, thickness, z0, z1, yBottom, yTop, segments = 16) {
   const x0 = x - thickness / 2;
   const x1 = x + thickness / 2;

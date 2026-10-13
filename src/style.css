@@ -17,6 +17,8 @@ body {
   left: 14px;
   bottom: 14px;
   width: 280px;
+  max-height: calc(100vh - 28px);
+  overflow: auto;
   padding: 12px 14px 10px;
   color: #f3f1ec;
   background: rgba(18, 18, 20, 0.62);
@@ -60,6 +62,10 @@ button {
   border-radius: 6px;
   padding: 5px 8px;
   cursor: pointer;
+}
+
+button[aria-pressed='true'] {
+  background: #f3d7a1;
 }
 
 .hint {

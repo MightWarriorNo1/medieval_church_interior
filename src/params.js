@@ -1,9 +1,4 @@
-/**
- * Nave of a high-gothic basilica, in metres.
- * A 12 m nave is often 25–30 m to the crown. Arcade, triforium, and
- * clerestory are stacked so the arcade stays the heavy lower order and
- * the clerestory lancets stay tall. Ribs spring above the triforium.
- */
+// Metres. A 12 m nave wants the crown around 25–30, arcade heavy, clerestory still tall.
 export const DEFAULTS = {
   bays: 7,
   bayLength: 6.6,
@@ -29,7 +24,7 @@ export const DEFAULTS = {
   eyeHeight: 1.65,
 };
 
-/** Lowest crown that still keeps the transverse arch pointed. */
+// Under this the transverse arch stops being pointed.
 export function lowestCrown(naveWidth, spring = DEFAULTS.vaultSpring) {
   const width = clamp(naveWidth, 10, 14);
   return spring + width / 2 + 0.35;
@@ -40,7 +35,7 @@ export function resolveParams(partial = {}) {
   p.bays = clamp(Math.round(p.bays), 5, 9);
   p.naveWidth = clamp(p.naveWidth, 10, 14);
   p.vaultCrown = clamp(p.vaultCrown, 24, 32);
-  // A rise shorter than half the span folds the crown into a valley.
+  // Shorter than half the span and the crown folds into a valley.
   if (p.vaultCrown < lowestCrown(p.naveWidth, p.vaultSpring)) {
     p.vaultCrown = lowestCrown(p.naveWidth, p.vaultSpring);
   }
@@ -59,7 +54,7 @@ export function resolveParams(partial = {}) {
   p.vaultRise = p.vaultCrown - p.vaultSpring;
   p.wallArchRise = p.wallArchApex - p.vaultSpring;
   p.aisleRise = p.aisleCrown - p.aisleSpring;
-  // The aisle's long arch spans a full bay, so it needs at least that much rise.
+  // The long aisle arch spans a full bay, so it needs at least that much rise.
   const aisleAlong = Math.max(p.bayLength / 2 + 0.08, p.aisleRise * 0.72);
   p.aisleWallApex = p.aisleSpring + aisleAlong;
 

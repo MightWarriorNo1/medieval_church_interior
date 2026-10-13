@@ -30,7 +30,7 @@ function addSideArcade(stone, p, side, bay) {
   const archY = (z) =>
     p.arcadeImpost + pointedArchHeight(z - zMid, p.bayLength, p.arcadeRise);
   const wallX = x + side * 0.3;
-  stone.push(variableWall(wallX, 0.64, z0 + 0.35, z1 - 0.35, archY, p.triforiumSill, 18));
+  stone.push(variableWall(wallX, 0.64, z0, z1, archY, p.triforiumSill, 18));
 
   const courseZ0 = z0 + 0.9;
   const courseZ1 = z1 - 0.9;

@@ -3,6 +3,11 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { buildChurch } from './buildChurch.js';
 import { mergeParts } from './geom/mesh.js';
 import { DEFAULTS, lowestCrown, resolveParams } from './params.js';
+import { listOpenings } from './systems/openings.js';
+import { createWindowUniforms, packWindows, sunAt } from './lighting/sun.js';
+import { paintGlassAtlas, buildGlassMeshes } from './materials/glass.js';
+import { createStoneMaterial } from './materials/stone.js';
+import { aimShafts, createShafts, layoutDust } from './lighting/shafts.js';
 
 const canvas = document.getElementById('view');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -27,63 +32,96 @@ controls.maxDistance = 80;
 const hemi = new THREE.HemisphereLight(0xd5e2ee, 0x8a847c, 0.85);
 scene.add(hemi);
 
-const sun = new THREE.DirectionalLight(0xfff1e2, 3.1);
+const sun = new THREE.DirectionalLight(0xfff1e2, 2.35);
+const sunAim = new THREE.Vector3();
 sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
 sun.shadow.bias = -0.00025;
 sun.shadow.normalBias = 0.045;
 const shadow = sun.shadow.camera;
-shadow.left = -42;
-shadow.right = 42;
-shadow.top = 42;
-shadow.bottom = -42;
+shadow.left = -60;
+shadow.right = 60;
+shadow.top = 60;
+shadow.bottom = -60;
 shadow.near = 1;
-shadow.far = 170;
+shadow.far = 180;
 scene.add(sun);
 scene.add(sun.target);
 
-const fill = new THREE.DirectionalLight(0xd5e4f4, 0.75);
+const fill = new THREE.DirectionalLight(0xd5e4f4, 0.55);
 fill.position.set(-18, 14, -6);
 scene.add(fill);
 
-const stoneMat = new THREE.MeshStandardMaterial({
-  color: 0xb7b3ac,
-  roughness: 0.92,
-  metalness: 0,
-  side: THREE.DoubleSide,
-});
+const windowUniforms = createWindowUniforms();
+windowUniforms.uAtlas.value = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1);
+windowUniforms.uAtlas.value.needsUpdate = true;
+
+const stoneMat = createStoneMaterial(windowUniforms);
 const darkMat = new THREE.MeshStandardMaterial({
   color: 0x4e4b47,
   roughness: 1,
   metalness: 0,
   side: THREE.DoubleSide,
 });
-const floorMat = new THREE.MeshStandardMaterial({
-  color: 0xa39e96,
-  roughness: 0.96,
-  metalness: 0,
-});
+
+const shafts = createShafts(windowUniforms);
+scene.add(shafts.group);
 
 let root = null;
+let atlas = null;
+let glassMaterial = null;
+let openings = [];
 let params = resolveParams(DEFAULTS);
+let quality = 'high';
+let hour = 0.78;
 
 const baysInput = document.getElementById('bays');
 const widthInput = document.getElementById('width');
 const crownInput = document.getElementById('crown');
+const hourInput = document.getElementById('hour');
 const baysOut = document.getElementById('bays-out');
 const widthOut = document.getElementById('width-out');
 const crownOut = document.getElementById('crown-out');
+const hourOut = document.getElementById('hour-out');
+const qualityHigh = document.getElementById('quality-high');
+const qualityLow = document.getElementById('quality-low');
+
+function finite(value, fallback) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+const query = new URLSearchParams(location.search);
+function queryNumber(name) {
+  if (!query.has(name)) return null;
+  const n = Number(query.get(name));
+  return Number.isFinite(n) ? n : null;
+}
+const qBays = queryNumber('bays');
+const qWidth = queryNumber('width');
+const qCrown = queryNumber('crown');
+const qHour = queryNumber('hour');
+if (qBays !== null) baysInput.value = String(Math.round(qBays));
+if (qWidth !== null) widthInput.value = String(qWidth);
+if (qCrown !== null) crownInput.value = String(qCrown);
+if (qHour !== null) hour = Math.min(0.98, Math.max(0.02, qHour));
+if (query.get('quality') === 'low') quality = 'low';
+hourInput.value = String(hour);
 
 function readParams() {
-  const naveWidth = Number(widthInput.value);
+  const naveWidth = finite(widthInput.value, DEFAULTS.naveWidth);
   const minCrown = lowestCrown(naveWidth);
   crownInput.min = minCrown.toFixed(2);
-  if (Number(crownInput.value) < minCrown) crownInput.value = minCrown.toFixed(2);
+  let crown = finite(crownInput.value, DEFAULTS.vaultCrown);
+  if (crown < minCrown) {
+    crown = minCrown;
+    crownInput.value = minCrown.toFixed(2);
+  }
 
   return resolveParams({
-    bays: Number(baysInput.value),
+    bays: finite(baysInput.value, DEFAULTS.bays),
     naveWidth,
-    vaultCrown: Number(crownInput.value),
+    vaultCrown: crown,
   });
 }
 
@@ -91,13 +129,37 @@ function showParams() {
   baysOut.textContent = String(params.bays);
   widthOut.textContent = params.naveWidth.toFixed(1);
   crownOut.textContent = params.vaultCrown.toFixed(1);
+  const clock = 6 + hour * 12;
+  const hh = Math.floor(clock);
+  const mm = Math.floor((clock - hh) * 60 + 1e-4);
+  hourOut.textContent = `${hh}:${String(mm).padStart(2, '0')}`;
+  qualityHigh.setAttribute('aria-pressed', quality === 'high' ? 'true' : 'false');
+  qualityLow.setAttribute('aria-pressed', quality === 'low' ? 'true' : 'false');
 }
 
-function placeLight() {
-  const z = params.length * 0.42;
-  sun.position.set(24, 34, z - 8);
-  sun.target.position.set(0, 11, z);
+function applySun() {
+  sunAim.set(0, 10, params.length * 0.45);
+  const state = sunAt(hour, sunAim);
+  sun.position.copy(state.position);
+  sun.target.position.copy(sunAim);
+  sun.color.copy(state.color);
+  sun.intensity = 1.7 + state.elevation * 0.9;
   shadow.updateProjectionMatrix();
+
+  windowUniforms.uSunDir.value.copy(state.photon);
+  windowUniforms.uSunColor.value.copy(state.color);
+
+  const warm = hour;
+  scene.background.setRGB(
+    0.62 + warm * 0.22,
+    0.72 - warm * 0.08,
+    0.82 - warm * 0.28
+  );
+
+  const chosen = packWindows(openings, state.photon, quality, windowUniforms);
+  const beamCount = quality === 'high' ? 6 : 3;
+  aimShafts(shafts.beamMeshes, chosen.slice(0, beamCount), state.photon, state.color);
+  showParams();
 }
 
 function makeMesh(geometry, material, shadows) {
@@ -107,33 +169,67 @@ function makeMesh(geometry, material, shadows) {
   return mesh;
 }
 
+function disposeTree(obj) {
+  obj.traverse((child) => {
+    if (child.geometry) child.geometry.dispose();
+  });
+}
+
 function rebuild() {
   params = readParams();
-  showParams();
   const err = document.getElementById('err');
+  let nextAtlas = null;
+  let next = null;
   try {
     const parts = buildChurch(params);
-    const next = new THREE.Group();
-    const floorMesh = makeMesh(mergeParts(parts.floor), floorMat, false);
+    const nextOpenings = listOpenings(params);
+    nextAtlas = paintGlassAtlas(nextOpenings);
+
+    next = new THREE.Group();
+    const floorMesh = makeMesh(mergeParts(parts.floor), stoneMat, false);
     floorMesh.receiveShadow = true;
     next.add(makeMesh(mergeParts(parts.stone), stoneMat, true));
     next.add(makeMesh(mergeParts(parts.dark), darkMat, false));
     next.add(floorMesh);
 
-    if (root) {
-      scene.remove(root);
-      root.traverse((obj) => {
-        if (obj.geometry) obj.geometry.dispose();
-      });
-    }
+    const glass = buildGlassMeshes(nextOpenings, nextAtlas);
+    next.add(glass.group);
+
+    const previous = root;
+    const previousGlass = glassMaterial;
+    const previousAtlas = atlas;
+    scene.add(next);
+    if (previous) scene.remove(previous);
+
+    openings = nextOpenings;
+    atlas = nextAtlas;
+    nextAtlas = null;
+    glassMaterial = glass.material;
     root = next;
-    scene.add(root);
-    placeLight();
+    next = null;
+    const staleMap = windowUniforms.uAtlas.value;
+    windowUniforms.uAtlas.value = atlas;
+
+    if (previous) disposeTree(previous);
+    if (previousGlass) previousGlass.dispose();
+    if (previousAtlas) previousAtlas.dispose();
+    if (staleMap && staleMap !== atlas && staleMap !== previousAtlas) staleMap.dispose();
+
+    layoutDust(shafts.dustGeo, params);
+    applySun();
     if (err) err.textContent = '';
   } catch (error) {
     console.error(error);
+    if (next) disposeTree(next);
+    if (nextAtlas) nextAtlas.dispose();
     if (err) err.textContent = error.message;
   }
+}
+
+let rebuildTimer = 0;
+function scheduleRebuild() {
+  window.clearTimeout(rebuildTimer);
+  rebuildTimer = window.setTimeout(rebuild, 80);
 }
 
 function views() {
@@ -169,7 +265,7 @@ function frame(name) {
   camera.position.set(view.pos[0], view.pos[1], view.pos[2]);
   camera.updateProjectionMatrix();
   controls.target.set(view.target[0], view.target[1], view.target[2]);
-  // Damping keeps the last drag. Drop it or the preset eases away.
+  // Damping would otherwise ease away from the preset.
   const damping = controls.enableDamping;
   controls.enableDamping = false;
   controls.update();
@@ -184,14 +280,34 @@ function resize() {
   renderer.setSize(w, h, false);
 }
 
-window.addEventListener('resize', resize);
-for (const input of [baysInput, widthInput, crownInput]) {
-  input.addEventListener('input', rebuild);
+const unlisten = [];
+function listen(target, type, fn) {
+  target.addEventListener(type, fn);
+  unlisten.push(() => target.removeEventListener(type, fn));
 }
-document.getElementById('view-west').addEventListener('click', () => frame('west'));
-document.getElementById('view-rose').addEventListener('click', () => frame('rose'));
-document.getElementById('view-aisle').addEventListener('click', () => frame('aisle'));
-window.addEventListener('keydown', (event) => {
+
+listen(window, 'resize', resize);
+for (const input of [baysInput, widthInput, crownInput]) {
+  listen(input, 'input', scheduleRebuild);
+}
+listen(hourInput, 'input', () => {
+  const nextHour = Number(hourInput.value);
+  if (!Number.isFinite(nextHour)) return;
+  hour = nextHour;
+  applySun();
+});
+listen(qualityHigh, 'click', () => {
+  quality = 'high';
+  applySun();
+});
+listen(qualityLow, 'click', () => {
+  quality = 'low';
+  applySun();
+});
+listen(document.getElementById('view-west'), 'click', () => frame('west'));
+listen(document.getElementById('view-rose'), 'click', () => frame('rose'));
+listen(document.getElementById('view-aisle'), 'click', () => frame('aisle'));
+listen(window, 'keydown', (event) => {
   if (event.key === '1') frame('west');
   if (event.key === '2') frame('rose');
   if (event.key === '3') frame('aisle');
@@ -199,10 +315,29 @@ window.addEventListener('keydown', (event) => {
 
 resize();
 rebuild();
-const shot = new URLSearchParams(location.search).get('shot') || 'west';
+const shot = query.get('shot') || 'west';
 frame(views()[shot] ? shot : 'west');
 
 renderer.setAnimationLoop(() => {
   controls.update();
   renderer.render(scene, camera);
 });
+
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => {
+    window.clearTimeout(rebuildTimer);
+    renderer.setAnimationLoop(null);
+    for (const off of unlisten) off();
+    if (root) disposeTree(root);
+    if (glassMaterial) glassMaterial.dispose();
+    if (atlas) atlas.dispose();
+    stoneMat.dispose();
+    darkMat.dispose();
+    shafts.dustGeo.dispose();
+    const beamGeo = shafts.beamMeshes[0] && shafts.beamMeshes[0].geometry;
+    for (const mesh of shafts.beamMeshes) mesh.material.dispose();
+    if (beamGeo) beamGeo.dispose();
+    controls.dispose();
+    renderer.dispose();
+  });
+}

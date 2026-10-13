@@ -1,16 +1,11 @@
 import * as THREE from 'three';
 
-/**
- * Height of a pointed arch above its springing line.
- * x is measured from the crown, span is the full spring-to-spring distance.
- * Each half is a circular arc centred near the opposite springing point.
- */
+// x from the crown. Each half is a circle centred past the other spring.
 export function pointedArchHeight(x, span, rise) {
   const s = span / 2;
   const ax = Math.abs(x);
   if (!(span > 0) || ax >= s - 1e-4) return 0;
-  // Centres have to stay on the far side of the crown. Below this the
-  // arch turns inside out and the "crown" is the low point.
+  // Centres stay past the crown. Any lower and the arch turns inside out.
   const h = Math.max(rise, s, 0.05);
   const cx = (h * h - s * s) / (2 * s);
   const radius = Math.hypot(cx, h);
@@ -19,11 +14,7 @@ export function pointedArchHeight(x, span, rise) {
   return Math.sqrt(Math.max(0, radius * radius - dx * dx));
 }
 
-/**
- * Polyline of a pointed arch.
- * origin is the midpoint of the springing line.
- * xAxis is the horizontal unit from crown toward the positive spring.
- */
+// origin is the middle of the springing line. xAxis runs toward the positive spring.
 export function pointedArchPoints(origin, xAxis, yAxis, span, rise, segments = 28) {
   const points = [];
   const s = span / 2;
@@ -37,7 +28,7 @@ export function pointedArchPoints(origin, xAxis, yAxis, span, rise, segments = 2
   return points;
 }
 
-/** Nave vault soffit. max() of two pointed barrels makes the groin. */
+// Two pointed barrels. The groin is whichever one is higher.
 export function naveVaultY(x, z, bayCenter, p) {
   const yAcross =
     p.vaultSpring + pointedArchHeight(x, p.naveWidth, p.vaultRise);
@@ -62,7 +53,7 @@ export function aisleVaultY(x, z, bayCenter, p, side) {
   return Math.max(yAcross, yAlong);
 }
 
-/** Silhouette of the end wall, including the step down into the aisles. */
+// End-wall silhouette, nave arch then the step down over the aisles.
 export function sectionTop(x, p) {
   const ax = Math.abs(x);
   if (ax >= p.outerX - 1e-3) return 0;

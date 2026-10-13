@@ -3,17 +3,20 @@ import { pointedArchHeight, pointedArchPoints, sectionTop } from '../geom/arch.j
 import { hoodProfile, sweepProfile, twoOrderProfile } from '../geom/sweep.js';
 import { put, putBox } from '../geom/mesh.js';
 
-// The hole and the molding around it have to share these, or the stone
-// drifts off the opening the moment one of them gets tweaked.
-const PORTAL = { width: 3.15, jamb: 4.15, rise: 2.55 };
-const AISLE_LIGHT = { sill: 1.8, apex: 8.8, width: 1.2 };
-const EAST_LIGHTS = {
+// openings.js imports these. Keep the numbers in this file.
+export const PORTAL = { width: 3.15, jamb: 4.15, rise: 2.55 };
+export const AISLE_LIGHT = { sill: 1.8, apex: 8.8, width: 1.2 };
+export const EAST_LIGHTS = {
   centers: [-2.05, 0, 2.05],
   width: 1.42,
   sill: 2.4,
   apex: 19.2,
 };
-const EAST_OCULUS = { y: 22.15, hole: 1.5, ring: 1.32 };
+export const EAST_OCULUS = { y: 22.15, hole: 1.5, ring: 1.32 };
+
+export function lightJamb(sill, apex, spring = 0.67) {
+  return sill + (apex - sill) * spring;
+}
 
 export function addEnds(stone, p) {
   const shape = endShape(p);
@@ -68,24 +71,22 @@ function outline(p) {
     [-o, p.aisleSpring],
   ];
   const steps = 8;
-  for (let i = 0; i <= steps; i++) {
+  for (let i = 1; i <= steps; i++) {
     const x = -o + ((-n + o) * i) / steps;
     pts.push([x, aisleShoulder(x, p)]);
   }
   pts.push([-n, p.vaultSpring]);
   const naveSteps = 28;
-  for (let i = 0; i <= naveSteps; i++) {
+  for (let i = 1; i <= naveSteps; i++) {
     const x = -n + (2 * n * i) / naveSteps;
     pts.push([x, sectionTop(x, p)]);
   }
   pts.push([n, aisleShoulder(n, p)]);
-  for (let i = 0; i <= steps; i++) {
+  for (let i = 1; i <= steps; i++) {
     const x = n + ((o - n) * i) / steps;
     pts.push([x, aisleShoulder(x, p)]);
   }
-  pts.push([o, p.aisleSpring]);
   pts.push([o, -0.55]);
-  pts.push([-o, -0.55]);
   return pts;
 }
 
@@ -103,8 +104,7 @@ function addPortal(shape, width, jambY, rise) {
 }
 
 function addLancetHole(shape, cx, sill, apex, width) {
-  const height = apex - sill;
-  const jamb = sill + height * 0.67;
+  const jamb = lightJamb(sill, apex);
   const path = new THREE.Path();
   pointedOpening(path, cx, sill, width, jamb, apex - jamb);
   shape.holes.push(path);
@@ -219,11 +219,24 @@ function addEastTracery(stone, p) {
 
   putBox(stone, 5.9, 0.18, 0.16, 0, jamb - 0.02, z);
 
-  for (const cx of centers) {
+  centers.forEach((cx, index) => {
     putBox(stone, 0.2, jamb - sill, 0.16, cx, sill, z);
-    const origin = new THREE.Vector3(cx, jamb, z);
+    if (index === 1) {
+      for (const dir of [-1, 1]) {
+        const points = pointedArchPoints(
+          new THREE.Vector3(cx + dir * width * 0.2, jamb + rise * 0.12, z),
+          new THREE.Vector3(1, 0, 0),
+          new THREE.Vector3(0, 1, 0),
+          width * 0.4,
+          rise * 0.7,
+          12
+        );
+        stone.push(sweepProfile(points, hoodProfile(), new THREE.Vector3(0, 0, 1)));
+      }
+      return;
+    }
     const points = pointedArchPoints(
-      origin,
+      new THREE.Vector3(cx, jamb, z),
       new THREE.Vector3(1, 0, 0),
       new THREE.Vector3(0, 1, 0),
       width * 0.72,
@@ -234,17 +247,19 @@ function addEastTracery(stone, p) {
     const eye = new THREE.TorusGeometry(0.34, 0.055, 8, 18);
     eye.translate(cx, apex - rise * 0.38, z);
     stone.push(eye);
-  }
+  });
 
   const r = EAST_OCULUS.ring;
+  const tube = 0.055;
   const cy = EAST_OCULUS.y;
-  const ring = new THREE.TorusGeometry(r, 0.055, 6, 28);
+  const ring = new THREE.TorusGeometry(r, tube, 6, 28);
   ring.translate(0, cy, z);
   stone.push(ring);
+  const reach = r - tube;
   for (let i = 0; i < 8; i++) {
     const a = (i / 8) * Math.PI * 2;
-    const spoke = new THREE.BoxGeometry(r * 0.92, 0.07, 0.08);
-    spoke.translate(r * 0.46, 0, 0);
+    const spoke = new THREE.BoxGeometry(reach, 0.07, 0.08);
+    spoke.translate(reach / 2, 0, 0);
     spoke.rotateZ(a);
     spoke.translate(0, cy, z);
     stone.push(spoke);

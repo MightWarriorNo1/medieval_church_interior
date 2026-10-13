@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { aisleVaultY, naveVaultY, pointedArchHeight, pointedArchPoints } from '../geom/arch.js';
 import { hoodProfile, sweepProfile } from '../geom/sweep.js';
 import { putBox, variableWall } from '../geom/mesh.js';
+import { aisleSpec, clerestorySpec } from './openings.js';
 
 export function addUpperWalls(stone, dark, p) {
   for (let bay = 0; bay < p.bays; bay++) {
@@ -12,6 +13,20 @@ export function addUpperWalls(stone, dark, p) {
     addAisleWall(stone, p, -1, bay);
     addAisleWall(stone, p, 1, bay);
   }
+  for (let i = 0; i <= p.bays; i++) {
+    addTriforiumPier(stone, p, -1, i);
+    addTriforiumPier(stone, p, 1, i);
+  }
+}
+
+function baySpan(p, bay) {
+  const z0 = bay * p.bayLength;
+  const z1 = z0 + p.bayLength;
+  // Tuck the end bays into the west and east walls so the corner doesn't split.
+  return [
+    bay === 0 ? z0 - 0.08 : z0,
+    bay === p.bays - 1 ? z1 + 0.08 : z1,
+  ];
 }
 
 function wallCenter(p, side) {
@@ -27,9 +42,6 @@ function addTriforium(stone, dark, p, side, bay) {
   const face = x - side * 0.2;
   const sill = p.triforiumSill;
   const top = p.triforiumTop;
-
-  putBox(stone, 0.5, top - sill, 0.42, x, sill, zPier0 + 0.72);
-  putBox(stone, 0.5, top - sill, 0.42, x, sill, zPier1 - 0.72);
 
   const lights = 4;
   const mullion = 0.16;
@@ -77,83 +89,77 @@ function addColonnette(stone, x, y0, y1, z) {
   stone.push(cap);
 }
 
-function addClerestory(stone, p, side, bay) {
-  const z0 = bay * p.bayLength;
-  const z1 = z0 + p.bayLength;
-  const zcBay = (z0 + z1) / 2;
-  const inset0 = z0 + 0.85;
-  const inset1 = z1 - 0.85;
+function addTriforiumPier(stone, p, side, pier) {
+  const z = pier * p.bayLength;
   const x = wallCenter(p, side);
-  const face = x - side * 0.22;
-  const winW = p.clerestoryWidth;
+  const h = p.triforiumTop - p.triforiumSill;
+  putBox(stone, 0.5, h + 0.04, 1.9, x, p.triforiumSill - 0.02, z);
+}
+
+function addClerestory(stone, p, side, bay) {
+  const spec = clerestorySpec(p, side, bay);
+  const [z0, z1] = baySpan(p, bay);
+  const zcBay = spec.zc;
+  const x = wallCenter(p, side);
+  const face = spec.face;
+  const winW = spec.width;
   const zL = zcBay - winW / 2;
   const zR = zcBay + winW / 2;
-  const sill = p.clerestorySill;
-  const jambTop = sill + (p.clerestoryApex - sill) * 0.64;
-  const rise = p.clerestoryApex - jambTop;
-
-  putBox(stone, 0.5, sill - p.triforiumTop, inset1 - inset0, x, p.triforiumTop, zcBay);
+  const sill = spec.sill;
+  const jambTop = spec.jamb;
+  const rise = spec.rise;
+  const foot = p.triforiumTop - 0.02;
 
   const formeret = (z) => naveVaultY(side * p.naveHalf, z, zcBay, p);
-  stone.push(variableWall(x, 0.5, inset0, zL, sill, formeret, 8));
-  stone.push(variableWall(x, 0.5, zR, inset1, sill, formeret, 8));
+  stone.push(variableWall(x, 0.5, z0, zL, foot, formeret, 12));
+  stone.push(variableWall(x, 0.5, zR, z1, foot, formeret, 12));
+  stone.push(variableWall(x, 0.5, zL, zR, foot, sill, 2));
 
   const windowArch = (z) => jambTop + pointedArchHeight(z - zcBay, winW, rise);
   stone.push(variableWall(x, 0.5, zL, zR, windowArch, formeret, 12));
 
-  const origin = new THREE.Vector3(face, jambTop - 0.02, zcBay);
-  const hood = pointedArchPoints(
-    origin,
-    new THREE.Vector3(0, 0, 1),
-    new THREE.Vector3(0, 1, 0),
-    winW + 0.45,
-    rise + 0.35,
-    18
-  );
-  stone.push(sweepProfile(hood, hoodProfile(), new THREE.Vector3(side, 0, 0)));
+  addHood(stone, face, side, zcBay, jambTop - 0.02, winW + 0.45, rise + 0.35);
 
-  const subW = winW * 0.46;
-  const subRise = rise * 0.72;
-  const subSpring = jambTop + rise * 0.18;
-  for (const dir of [-1, 1]) {
-    const sz = zcBay + dir * subW * 0.55;
-    const sub = pointedArchPoints(
-      new THREE.Vector3(face, subSpring, sz),
-      new THREE.Vector3(0, 0, 1),
-      new THREE.Vector3(0, 1, 0),
-      subW,
-      subRise,
-      12
-    );
-    stone.push(sweepProfile(sub, smallProfile(), new THREE.Vector3(side, 0, 0)));
+  // 0 two lights under a circle, 1 three lights, 2 a circle in the head
+  const pattern = Math.abs(spec.seed) % 3;
+  if (pattern === 0) {
+    const subW = winW * 0.46;
+    const subSpring = jambTop + rise * 0.18;
+    addBarArch(stone, face, side, zcBay - subW * 0.55, subSpring, subW, rise * 0.72);
+    addBarArch(stone, face, side, zcBay + subW * 0.55, subSpring, subW, rise * 0.72);
+    putBox(stone, 0.12, subSpring - sill, 0.1, face, sill, zcBay);
+    addEye(stone, face, spec.apex - rise * 0.42, zcBay, Math.min(0.36, rise * 0.28));
+  } else if (pattern === 1) {
+    const gap = 0.1;
+    const lightW = (winW - gap * 2) / 3;
+    const spring = jambTop + rise * 0.08;
+    for (let i = -1; i <= 1; i++) {
+      const z = zcBay + i * (lightW + gap);
+      addBarArch(stone, face, side, z, spring, lightW * 0.92, rise * 0.78);
+      if (i < 1) putBox(stone, 0.1, spring - sill, 0.09, face, sill, z + (lightW + gap) / 2);
+    }
+  } else {
+    putBox(stone, 0.11, jambTop - sill, 0.1, face, sill, zcBay);
+    addEye(stone, face, jambTop + rise * 0.55, zcBay, Math.min(0.42, rise * 0.34));
   }
-
-  const mullionH = subSpring - sill;
-  putBox(stone, 0.12, mullionH, 0.1, face, sill, zcBay);
-
-  const eye = new THREE.TorusGeometry(Math.min(0.36, rise * 0.28), 0.035, 6, 18);
-  eye.rotateY(Math.PI / 2);
-  eye.translate(face, p.clerestoryApex - rise * 0.42, zcBay);
-  stone.push(eye);
 }
 
 function addAisleWall(stone, p, side, bay) {
-  const z0 = bay * p.bayLength;
-  const z1 = z0 + p.bayLength;
-  const zc = (z0 + z1) / 2;
+  const spec = aisleSpec(p, side, bay);
+  const [z0, z1] = baySpan(p, bay);
+  const zc = spec.zc;
   const inner = side * p.outerX;
   const x = inner + side * 0.36;
   const top = (z) => aisleVaultY(inner, z, zc, p, side);
-  const winW = 1.65;
+  const winW = spec.width;
   const zL = zc - winW / 2;
   const zR = zc + winW / 2;
-  const sill = 2.05;
-  const apex = Math.min(p.aisleWallApex - 0.7, 11.8);
-  const jambTop = sill + (apex - sill) * 0.68;
-  const rise = Math.max(0.8, apex - jambTop);
+  const sill = spec.sill;
+  const jambTop = spec.jamb;
+  const rise = spec.rise;
 
-  stone.push(variableWall(x, 0.72, z0 + 0.45, zL, 0, top, 8));
-  stone.push(variableWall(x, 0.72, zR, z1 - 0.45, 0, top, 8));
+  stone.push(variableWall(x, 0.72, z0, zL, 0, top, 12));
+  stone.push(variableWall(x, 0.72, zR, z1, 0, top, 12));
   stone.push(variableWall(x, 0.72, zL, zR, 0, sill, 2));
 
   const windowArch = (z) => jambTop + pointedArchHeight(z - zc, winW, rise);
@@ -169,6 +175,44 @@ function addAisleWall(stone, p, side, bay) {
     14
   );
   stone.push(sweepProfile(hood, hoodProfile(), new THREE.Vector3(side, 0, 0)));
+
+  // Odd bays get a bar. Both sides of a bay match.
+  const pattern = Math.floor(spec.seed / 2) % 2;
+  if (pattern === 1) {
+    putBox(stone, 0.1, jambTop - sill, 0.09, face, sill, zc);
+    addEye(stone, face, jambTop + rise * 0.48, zc, Math.min(0.28, rise * 0.2));
+  }
+}
+
+function addHood(stone, face, side, z, spring, width, rise) {
+  const hood = pointedArchPoints(
+    new THREE.Vector3(face, spring, z),
+    new THREE.Vector3(0, 0, 1),
+    new THREE.Vector3(0, 1, 0),
+    width,
+    rise,
+    18
+  );
+  stone.push(sweepProfile(hood, hoodProfile(), new THREE.Vector3(side, 0, 0)));
+}
+
+function addBarArch(stone, face, side, z, spring, width, rise) {
+  const pts = pointedArchPoints(
+    new THREE.Vector3(face, spring, z),
+    new THREE.Vector3(0, 0, 1),
+    new THREE.Vector3(0, 1, 0),
+    width,
+    rise,
+    12
+  );
+  stone.push(sweepProfile(pts, smallProfile(), new THREE.Vector3(side, 0, 0)));
+}
+
+function addEye(stone, face, y, z, radius) {
+  const eye = new THREE.TorusGeometry(radius, 0.035, 6, 16);
+  eye.rotateY(Math.PI / 2);
+  eye.translate(face, y, z);
+  stone.push(eye);
 }
 
 function smallProfile() {
