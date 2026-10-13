@@ -175,13 +175,6 @@ function addAisleWall(stone, p, side, bay) {
     14
   );
   stone.push(sweepProfile(hood, hoodProfile(), new THREE.Vector3(side, 0, 0)));
-
-  // Odd bays get a bar. Both sides of a bay match.
-  const pattern = Math.floor(spec.seed / 2) % 2;
-  if (pattern === 1) {
-    putBox(stone, 0.1, jambTop - sill, 0.09, face, sill, zc);
-    addEye(stone, face, jambTop + rise * 0.48, zc, Math.min(0.28, rise * 0.2));
-  }
 }
 
 function addHood(stone, face, side, z, spring, width, rise) {
