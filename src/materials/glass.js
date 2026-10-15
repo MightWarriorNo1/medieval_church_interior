@@ -3,39 +3,158 @@ import { pointedArchHeight } from '../geom/arch.js';
 
 const CELL = 256;
 const COLS = 8;
+const SAMPLE = 160;
 
-const HUES = [
-  [0.55, 0.08, 0.1],
-  [0.1, 0.22, 0.62],
-  [0.1, 0.42, 0.28],
-  [0.72, 0.55, 0.12],
-  [0.4, 0.1, 0.48],
-  [0.75, 0.78, 0.72],
-  [0.62, 0.28, 0.12],
+// Jewel tones, sRGB. The pane shader converts these to linear. No pale grisaille hue:
+// a near-white wedge read as empty glass.
+const PALETTES = [
+  ['#7a1a26', '#1c3470', '#b8892a'],
+  ['#1a4a70', '#6a2448', '#2a6032'],
+  ['#80261a', '#24586a', '#b89a3a'],
+  ['#3a2670', '#1c6048', '#a85a28'],
+  ['#8a1830', '#16305a', '#c4a046'],
+  ['#1e5a48', '#6e2038', '#3a4a88'],
 ];
+const GOLD = '#c6a25a';
 
-function rng(seed) {
-  let state = seed >>> 0 || 1;
-  return () => {
-    state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
-    return state / 4294967296;
-  };
+const scratch = document.createElement('canvas');
+scratch.width = SAMPLE;
+scratch.height = SAMPLE;
+const scratchCtx = scratch.getContext('2d', { willReadFrequently: true });
+const pixels = scratchCtx.createImageData(SAMPLE, SAMPLE);
+
+function hexRgb(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  return [(n >> 16) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255];
 }
 
-function palette(random) {
-  const colors = [];
-  const start = Math.floor(random() * HUES.length);
-  for (let i = 0; i < 4; i++) {
-    const source = HUES[(start + i * 2) % HUES.length];
-    const shift = 0.75 + random() * 0.45;
-    colors.push(source.map((channel) => Math.min(1, channel * shift)));
+function toLinear(c) {
+  return c.map((v) => (v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+}
+
+function paletteOf(seed) {
+  const index = Math.abs(Math.floor(seed)) % PALETTES.length;
+  return PALETTES[index].map(hexRgb);
+}
+
+function fract(x) {
+  return x - Math.floor(x);
+}
+
+function smoothstep(e0, e1, x) {
+  const t = Math.min(1, Math.max(0, (x - e0) / (e1 - e0 || 1)));
+  return t * t * (3 - 2 * t);
+}
+
+function hash1(n) {
+  return fract(Math.sin(n) * 43758.5453123);
+}
+
+function hash2(ix, iy) {
+  return fract(Math.sin(ix * 127.1 + iy * 311.7) * 43758.5453123);
+}
+
+function hash22(ix, iy) {
+  const sx = ix * 127.1 + iy * 311.7;
+  const sy = ix * 269.5 + iy * 183.3;
+  return [fract(Math.sin(sx) * 43758.5453), fract(Math.sin(sy) * 43758.5453)];
+}
+
+function voronoi(px, py) {
+  const ix = Math.floor(px);
+  const iy = Math.floor(py);
+  const fx = px - ix;
+  const fy = py - iy;
+  let f1 = 9;
+  let f2 = 9;
+  let id = 0;
+  for (let y = -1; y <= 1; y++) {
+    for (let x = -1; x <= 1; x++) {
+      const [ox, oy] = hash22(ix + x, iy + y);
+      const d = Math.hypot(x + ox - fx, y + oy - fy);
+      if (d < f1) {
+        f2 = f1;
+        f1 = d;
+        id = hash2(ix + x, iy + y);
+      } else if (d < f2) {
+        f2 = d;
+      }
+    }
   }
-  return colors;
+  return [f1, f2, id];
 }
 
-function fill(ctx, color) {
-  ctx.fillStyle = rgb(color);
-  ctx.fill();
+// Same field the shader uses, so the coloured light on the stone is this window.
+function field(u, v, seed, aspect, rose) {
+  const layout = Math.abs(Math.floor(seed)) % 4;
+  if (rose) {
+    const dx = u - 0.5;
+    const dy = v - 0.5;
+    const r = Math.hypot(dx, dy) * 2;
+    const ang = Math.atan2(dy, dx);
+    const rings = 5;
+    const spokes = 18;
+    const ring = Math.floor(r * rings);
+    const spokeGap = Math.abs(fract((ang * spokes) / (Math.PI * 2) + 0.5) - 0.5);
+    const tracery = smoothstep(0.012, 0.05, Math.abs(fract(r * rings + 0.5) - 0.5))
+      * smoothstep(0.008, 0.04, spokeGap * Math.max(r, 0.18))
+      * smoothstep(0, 0.08, r);
+    return {
+      px: r * rings + seed * 0.01,
+      py: (ang * spokes) / (Math.PI * 2) + ring * 0.37,
+      tracery,
+      gray: 0,
+    };
+  }
+
+  const cols = 6;
+  const rows = Math.max(12, cols * aspect * 0.85);
+  let px = u * cols;
+  let py = v * rows;
+  let gray = 0;
+  if (layout === 1) {
+    const count = Math.min(5, Math.max(2, Math.floor(aspect * 0.42)));
+    let inside = false;
+    for (let i = 0; i < count; i++) {
+      const cy = (i + 0.65) / (count + 0.25);
+      if (Math.hypot(u - 0.5, (v - cy) * 0.55) < 0.105) inside = true;
+    }
+    if (inside) {
+      px = u * 3.2;
+      py = v * Math.max(6, 3.2 * aspect * 0.55);
+    }
+  } else if (layout === 2) {
+    const frame = u < 0.085 || u > 0.915 || v < 0.045 || v > 0.955;
+    if (frame) {
+      px = u * 13;
+      py = v * Math.max(18, 13 * aspect * 0.75);
+    } else {
+      px = u * 4.2;
+      py = v * Math.max(8, 4.2 * aspect * 0.75);
+      gray = 0.28;
+    }
+  } else if (layout === 3) {
+    px = (u + v * 0.35) * 5.5;
+    py = v * Math.max(14, 8 * aspect * 0.8);
+  }
+  return { px: px + seed * 0.013, py: py + seed * 0.017, tracery: 1, gray };
+}
+
+function quarryByte(u, v, seed, aspect, rose, pal) {
+  const cell = field(u, v, seed, aspect, rose);
+  const vor = voronoi(cell.px, cell.py);
+  const id = vor[2];
+  const k = fract(id * 5.37 + seed * 0.01);
+  const gold = hexRgb(GOLD);
+  const pick = k < 0.34 ? pal[0] : k < 0.62 ? pal[1] : k < 0.8 ? pal[2] : gold;
+  const shade = 0.55 + 0.55 * hash1(id * 91.7);
+  let col = pick.map((channel) => channel * shade);
+  const gray = (col[0] + col[1] + col[2]) / 3;
+  col = col.map((channel) => channel * (0.78 - cell.gray) + gray * (0.22 + cell.gray));
+  const streak = 0.84 + 0.28 * hash1(cell.px * 3.1 + cell.py * 1.7 + seed);
+  col = col.map((channel) => channel * streak);
+  const came = smoothstep(0.05, 0.14, vor[1] - vor[0]) * cell.tracery;
+  return col.map((channel) => Math.round(Math.min(1, Math.max(0, 0.035 + channel * came)) * 255));
 }
 
 // Same order as listOpenings. The light shader looks up this rect.
@@ -47,14 +166,13 @@ export function paintGlassAtlas(openings) {
   const canvas = document.createElement('canvas');
   canvas.width = CELL * COLS;
   canvas.height = CELL * COLS;
-  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  const ctx = canvas.getContext('2d');
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   openings.forEach((opening, index) => {
     const col = index % COLS;
     const row = Math.floor(index / COLS);
-    const rect = atlasRect(col, row);
-    opening.atlas = rect;
+    opening.atlas = atlasRect(col, row);
     opening.color = paintCell(ctx, col, row, opening);
   });
 
@@ -78,279 +196,286 @@ function atlasRect(col, row) {
 }
 
 function paintCell(ctx, col, row, opening) {
-  const random = rng(opening.seed);
-  const colors = palette(random);
-  const family = opening.seed % 5;
-  const x0 = col * CELL;
-  const y0 = row * CELL;
-
-  ctx.save();
-  ctx.beginPath();
-  ctx.rect(x0, y0, CELL, CELL);
-  ctx.clip();
-  ctx.translate(x0, y0 + CELL);
-  ctx.scale(CELL, -CELL);
-  ctx.fillStyle = rgb(colors[0]);
-  ctx.fillRect(0, 0, 1, 1);
-  const used = drawFamily(ctx, family, colors, random, opening);
-  ctx.restore();
-
-  const average = [0, 0, 0];
-  for (const color of used) {
-    average[0] += color[0];
-    average[1] += color[1];
-    average[2] += color[2];
+  const pal = paletteOf(opening.seed);
+  const rose = opening.kind === 'circle';
+  const aspect = rose ? 1 : opening.height / Math.max(opening.width, 0.4);
+  const data = pixels.data;
+  for (let y = 0; y < SAMPLE; y++) {
+    const v = 1 - (y + 0.5) / SAMPLE;
+    for (let x = 0; x < SAMPLE; x++) {
+      const rgb = quarryByte((x + 0.5) / SAMPLE, v, opening.seed, aspect, rose, pal);
+      const i = (y * SAMPLE + x) * 4;
+      data[i] = rgb[0];
+      data[i + 1] = rgb[1];
+      data[i + 2] = rgb[2];
+      data[i + 3] = 255;
+    }
   }
-  return average.map((channel) => channel / used.length);
+  scratchCtx.putImageData(pixels, 0, 0);
+  ctx.drawImage(scratch, col * CELL, row * CELL, CELL, CELL);
+
+  const sum = [0, 0, 0];
+  for (const color of pal) {
+    sum[0] += color[0];
+    sum[1] += color[1];
+    sum[2] += color[2];
+  }
+  return sum.map((channel) => channel / pal.length);
 }
 
-function drawFamily(ctx, family, colors, random, opening) {
-  if (opening.kind === 'circle') {
-    const stained = roundel(ctx, random);
-    leadBorder(ctx, opening);
-    return stained;
+const GLASS_VERT = /* glsl */ `
+attribute float aSeed;
+attribute float aAspect;
+attribute float aRose;
+attribute float aGain;
+attribute vec3 aPalA;
+attribute vec3 aPalB;
+attribute vec3 aPalC;
+attribute vec3 aWinN;
+attribute vec4 aArch;
+
+varying vec2 vUv;
+varying vec3 vWorld;
+varying vec3 vNormal;
+varying float vSeed;
+varying float vAspect;
+varying float vRose;
+varying float vGain;
+varying vec3 vPalA;
+varying vec3 vPalB;
+varying vec3 vPalC;
+varying vec3 vWinN;
+varying vec4 vArch;
+
+void main() {
+  vUv = uv;
+  vSeed = aSeed;
+  vAspect = aAspect;
+  vRose = aRose;
+  vGain = aGain;
+  vPalA = aPalA;
+  vPalB = aPalB;
+  vPalC = aPalC;
+  vWinN = aWinN;
+  vArch = aArch;
+  vec4 world = modelMatrix * vec4(position, 1.0);
+  vWorld = world.xyz;
+  vNormal = normalize(mat3(modelMatrix) * normal);
+  gl_Position = projectionMatrix * viewMatrix * world;
+}
+`;
+
+const GLASS_FRAG = /* glsl */ `
+uniform vec3 uPhoton;
+uniform vec3 uSunColor;
+uniform float uElevation;
+
+varying vec2 vUv;
+varying vec3 vWorld;
+varying vec3 vNormal;
+varying float vSeed;
+varying float vAspect;
+varying float vRose;
+varying float vGain;
+varying vec3 vPalA;
+varying vec3 vPalB;
+varying vec3 vPalC;
+varying vec3 vWinN;
+varying vec4 vArch;
+
+float hash1(float n) { return fract(sin(n) * 43758.5453123); }
+float hash2(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123); }
+vec2 hash22(vec2 p) {
+  p = vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)));
+  return fract(sin(p) * 43758.5453);
+}
+float hash3(vec3 p) { return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453123); }
+float vnoise(vec3 p) {
+  vec3 i = floor(p);
+  vec3 f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  return mix(
+    mix(mix(hash3(i), hash3(i + vec3(1.0, 0.0, 0.0)), f.x),
+        mix(hash3(i + vec3(0.0, 1.0, 0.0)), hash3(i + vec3(1.0, 1.0, 0.0)), f.x), f.y),
+    mix(mix(hash3(i + vec3(0.0, 0.0, 1.0)), hash3(i + vec3(1.0, 0.0, 1.0)), f.x),
+        mix(hash3(i + vec3(0.0, 1.0, 1.0)), hash3(i + vec3(1.0, 1.0, 1.0)), f.x), f.y),
+    f.z);
+}
+float fbm3(vec3 p) {
+  float v = 0.0;
+  float a = 0.5;
+  for (int i = 0; i < 3; i++) {
+    v += a * vnoise(p);
+    p = p * 2.1 + 3.3;
+    a *= 0.5;
   }
-  const aspect = opening.height / Math.max(opening.width, 0.4);
-  if (family === 0) medallion(ctx, colors, random, aspect);
-  else if (family === 1) bands(ctx, colors, random, aspect);
-  else if (family === 2) diamonds(ctx, colors, random, aspect);
-  else if (family === 3) star(ctx, colors, random, aspect);
-  else grisaille(ctx, colors, random, aspect);
-  leadBorder(ctx, opening);
-  return colors;
+  return v;
+}
+vec3 voronoi(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  float f1 = 9.0;
+  float f2 = 9.0;
+  float id = 0.0;
+  for (int y = -1; y <= 1; y++) {
+    for (int x = -1; x <= 1; x++) {
+      vec2 g = vec2(float(x), float(y));
+      vec2 o = hash22(i + g);
+      float d = length(g + o - f);
+      if (d < f1) {
+        f2 = f1;
+        f1 = d;
+        id = hash2(i + g);
+      } else if (d < f2) {
+        f2 = d;
+      }
+    }
+  }
+  return vec3(f1, f2, id);
 }
 
-function roundel(ctx, random) {
-  const stained = HUES.filter((_, index) => index !== 5);
-  const start = Math.floor(random() * stained.length);
-  const colors = [];
-  for (let i = 0; i < 4; i++) {
-    const source = stained[(start + i * 2) % stained.length];
-    const shift = 0.85 + random() * 0.2;
-    colors.push(source.map((channel) => Math.min(1, channel * shift)));
-  }
-  const petals = 10 + Math.floor(random() * 3);
-  const spin = random() * Math.PI;
-  ctx.save();
-  ctx.beginPath();
-  ctx.arc(0.5, 0.5, 0.49, 0, Math.PI * 2);
-  ctx.clip();
-  for (let i = 0; i < petals; i++) {
-    const a0 = spin + (i / petals) * Math.PI * 2;
-    const a1 = spin + ((i + 1) / petals) * Math.PI * 2;
-    ctx.beginPath();
-    ctx.moveTo(0.5, 0.5);
-    ctx.arc(0.5, 0.5, 0.49, a0, a1);
-    ctx.closePath();
-    fill(ctx, colors[i % colors.length]);
-  }
-  ctx.strokeStyle = '#1a1614';
-  ctx.lineWidth = 0.018;
-  for (let i = 0; i < petals; i++) {
-    const a = spin + (i / petals) * Math.PI * 2;
-    ctx.beginPath();
-    ctx.moveTo(0.5 + Math.cos(a) * 0.16, 0.5 + Math.sin(a) * 0.16);
-    ctx.lineTo(0.5 + Math.cos(a) * 0.48, 0.5 + Math.sin(a) * 0.48);
-    ctx.stroke();
-  }
-  ctx.beginPath();
-  ctx.arc(0.5, 0.5, 0.2, 0, Math.PI * 2);
-  fill(ctx, colors[1]);
-  ctx.lineWidth = 0.02;
-  ctx.stroke();
-  const inner = 6;
-  for (let i = 0; i < inner; i++) {
-    const a = spin + (i / inner) * Math.PI * 2 + 0.3;
-    ctx.beginPath();
-    ctx.arc(0.5 + Math.cos(a) * 0.11, 0.5 + Math.sin(a) * 0.11, 0.055, 0, Math.PI * 2);
-    fill(ctx, colors[(i + 1) % colors.length]);
-    lead(ctx);
-  }
-  ctx.beginPath();
-  ctx.arc(0.5, 0.5, 0.045, 0, Math.PI * 2);
-  fill(ctx, colors[2]);
-  lead(ctx);
-  ctx.restore();
-  return colors;
+float pointedArchHeight(float x, float span, float rise) {
+  float s = span * 0.5;
+  float ax = abs(x);
+  if (span <= 0.0 || ax >= s - 1e-4) return 0.0;
+  float h = max(rise, max(s, 0.05));
+  float cx = (h * h - s * s) / (2.0 * s);
+  float radius = sqrt(cx * cx + h * h);
+  float centerX = x < 0.0 ? cx : -cx;
+  float dx = x - centerX;
+  return sqrt(max(0.0, radius * radius - dx * dx));
 }
 
-function lead(ctx) {
-  ctx.strokeStyle = '#1a1614';
-  ctx.lineWidth = 0.016;
-  ctx.lineJoin = 'round';
-  ctx.stroke();
+vec3 jewel(float id) {
+  float k = fract(id * 5.37 + vSeed * 0.01);
+  vec3 gold = vec3(0.55, 0.36, 0.10);
+  vec3 c = k < 0.34 ? vPalA : k < 0.62 ? vPalB : k < 0.8 ? vPalC : gold;
+  float shade = 0.55 + 0.55 * hash1(id * 91.7);
+  c *= shade;
+  float gray = dot(c, vec3(0.333));
+  return mix(c, vec3(gray), 0.22);
 }
 
-function leadBorder(ctx, opening) {
-  ctx.save();
-  ctx.strokeStyle = '#1a1614';
-  ctx.lineWidth = 0.028;
-  ctx.lineJoin = 'miter';
-  ctx.beginPath();
-  if (opening.kind === 'circle') {
-    ctx.arc(0.5, 0.5, 0.46, 0, Math.PI * 2);
+void main() {
+  vec2 uv = vUv;
+  float motif = mod(floor(vSeed + 0.5), 4.0);
+  vec2 p = vec2(0.0);
+  float tracery = 1.0;
+  float grayMix = 0.0;
+
+  if (vRose > 0.5) {
+    vec2 c = uv - 0.5;
+    float r = length(c) * 2.0;
+    float ang = atan(c.y, c.x);
+    float rings = 5.0;
+    float spokes = 18.0;
+    p = vec2(r * rings + vSeed * 0.01, ang * spokes / 6.2831853 + floor(r * rings) * 0.37);
+    tracery *= smoothstep(0.012, 0.05, abs(fract(r * rings + 0.5) - 0.5));
+    tracery *= smoothstep(0.008, 0.04, abs(fract(ang * spokes / 6.2831853 + 0.5) - 0.5) * max(r, 0.18));
+    tracery *= smoothstep(0.0, 0.08, r);
   } else {
-    const width = opening.width;
-    const rise = opening.rise;
-    const jamb = opening.jamb - opening.sill;
-    const apex = jamb + pointedArchHeight(0, width, rise);
-    const spring = jamb / apex;
-    const inset = 0.06;
-    const x0 = -width * (0.5 - inset);
-    const x1 = -x0;
-    const u = (x) => x / width + 0.5;
-    ctx.moveTo(u(x0), 0.03);
-    ctx.lineTo(u(x0), spring);
-    const segs = 18;
-    for (let i = 0; i <= segs; i++) {
-      const x = x0 + ((x1 - x0) * i) / segs;
-      const v = (jamb + pointedArchHeight(x, width, rise)) / apex;
-      ctx.lineTo(u(x), Math.min(0.98, v));
+    float cols = 6.0;
+    float rows = max(12.0, cols * vAspect * 0.85);
+    p = vec2(uv.x * cols, uv.y * rows);
+    if (motif > 0.5 && motif < 1.5) {
+      float count = clamp(floor(vAspect * 0.42), 2.0, 5.0);
+      float inside = 0.0;
+      for (int i = 0; i < 5; i++) {
+        float fi = float(i);
+        float live = step(fi + 0.5, count);
+        float cy = (fi + 0.65) / (count + 0.25);
+        float dist = length(vec2(uv.x - 0.5, (uv.y - cy) * 0.55));
+        inside = max(inside, live * step(dist, 0.105));
+      }
+      if (inside > 0.5) p = vec2(uv.x * 3.2, uv.y * max(6.0, 3.2 * vAspect * 0.55));
+    } else if (motif > 1.5 && motif < 2.5) {
+      float border = 1.0 - step(0.085, uv.x) * step(uv.x, 0.915) * step(0.045, uv.y) * step(uv.y, 0.955);
+      if (border > 0.5) p = vec2(uv.x * 13.0, uv.y * max(18.0, 13.0 * vAspect * 0.75));
+      else {
+        p = vec2(uv.x * 4.2, uv.y * max(8.0, 4.2 * vAspect * 0.75));
+        grayMix = 0.28;
+      }
+    } else if (motif > 2.5) {
+      p = vec2((uv.x + uv.y * 0.35) * 5.5, uv.y * max(14.0, 8.0 * vAspect * 0.8));
     }
-    ctx.lineTo(u(x1), 0.03);
-    ctx.closePath();
+    p += vec2(vSeed * 0.013, vSeed * 0.017);
   }
-  ctx.stroke();
-  ctx.restore();
-}
 
-function medallion(ctx, colors, random, aspect) {
-  const count = Math.max(2, Math.round(aspect * 0.55));
-  const petals = 6 + Math.floor(random() * 3);
-  for (let i = 0; i < count; i++) {
-    const cy = (i + 0.55) / (count + 0.3);
-    const rx = 0.3;
-    const ry = 0.38 / count;
-    for (let p = 0; p < petals; p++) {
-      const angle = (p / petals) * Math.PI * 2;
-      ctx.beginPath();
-      ctx.ellipse(
-        0.5 + Math.cos(angle) * rx * 0.55,
-        cy + Math.sin(angle) * ry * 0.55,
-        rx * 0.28,
-        ry * 0.28,
-        0, 0, Math.PI * 2
-      );
-      fill(ctx, colors[(i + p) % colors.length]);
-      lead(ctx);
+  vec3 cell = voronoi(p);
+  vec3 col = jewel(cell.z);
+  if (grayMix > 0.0) col = mix(col, vec3(dot(col, vec3(0.333))), grayMix);
+  float gap = cell.y - cell.x;
+  float rim = smoothstep(0.02, 0.42, gap);
+  col *= 0.62 + 0.5 * rim;
+  vec3 fine = voronoi(p * 2.6 + 4.2);
+  float paint = smoothstep(0.0, 0.04, fine.y - fine.x);
+  col *= 0.72 + 0.28 * paint;
+  col *= 0.68 + 0.55 * fbm3(vec3(p * 3.1, vSeed));
+  col *= 0.86 + 0.28 * fbm3(vec3(uv.x * 1.4, uv.y * max(vAspect, 1.0) * 0.18, vSeed + 4.0));
+  float bubble = smoothstep(0.78, 0.97, hash2(p * 6.0 + vSeed));
+  col += vec3(0.16, 0.14, 0.09) * bubble * rim;
+  float came = smoothstep(0.045, 0.13, gap) * tracery;
+  float ridge = smoothstep(0.08, 0.13, gap) * (1.0 - smoothstep(0.13, 0.2, gap));
+  vec3 lead = vec3(0.035, 0.03, 0.028) + vec3(0.07, 0.065, 0.055) * ridge;
+  col = mix(lead, col, came);
+
+  if (motif > 0.5 && motif < 1.5 && vRose < 0.5) {
+    float count = clamp(floor(vAspect * 0.42), 2.0, 5.0);
+    float ring = 0.0;
+    for (int i = 0; i < 5; i++) {
+      float fi = float(i);
+      float live = step(fi + 0.5, count);
+      float cy = (fi + 0.65) / (count + 0.25);
+      float dist = length(vec2(uv.x - 0.5, (uv.y - cy) * 0.55));
+      ring = max(ring, live * (1.0 - smoothstep(0.0, 0.012, abs(dist - 0.10))));
     }
-    ctx.beginPath();
-    ctx.ellipse(0.5, cy, rx * 0.22, ry * 0.22, 0, 0, Math.PI * 2);
-    fill(ctx, colors[(i + 2) % colors.length]);
-    lead(ctx);
+    col = mix(col, vec3(0.03, 0.026, 0.024), ring);
   }
-}
 
-function bands(ctx, colors, random, aspect) {
-  const count = Math.max(5, Math.round(aspect * 0.9));
-  const y0 = 0.03;
-  const y1 = 0.97;
-  for (let i = 0; i < count; i++) {
-    const y = y0 + ((y1 - y0) * i) / count;
-    const h = (y1 - y0) / count - 0.012;
-    ctx.fillStyle = rgb(colors[i % colors.length]);
-    ctx.fillRect(0.08, y, 0.84, h);
-    ctx.strokeStyle = '#1a1614';
-    ctx.lineWidth = 0.016;
-    ctx.strokeRect(0.08, y, 0.84, h);
+  float frame = 1.0;
+  if (vRose > 0.5) {
+    float r = length(uv - 0.5) * 2.0;
+    frame = smoothstep(0.0, 0.045, 1.0 - r);
+  } else {
+    float span = max(vArch.x, 0.05);
+    float x = (uv.x - 0.5) * span;
+    float arch = (vArch.z + pointedArchHeight(x, span, vArch.y)) / max(vArch.w, 0.05);
+    float d = min(min(uv.x, 1.0 - uv.x), min(uv.y, arch - uv.y));
+    frame = smoothstep(0.0, 0.02, d);
   }
-  ctx.fillStyle = '#1a1614';
-  ctx.fillRect(0.47, 0.03, 0.06, 0.94);
-}
+  col = mix(vec3(0.03, 0.026, 0.024), col, frame);
 
-function diamonds(ctx, colors, random, aspect) {
-  const cols = 2 + Math.floor(random() * 2);
-  const rows = Math.max(cols + 2, Math.round(aspect * 1.15));
-  for (let y = 0; y < rows; y++) {
-    for (let x = 0; x < cols; x++) {
-      const cx = 0.14 + (x + 0.5) * (0.72 / cols);
-      const cy = 0.06 + (y + 0.5) * (0.88 / rows);
-      const rx = 0.3 / cols;
-      const ry = 0.36 / rows;
-      ctx.beginPath();
-      ctx.moveTo(cx, cy - ry);
-      ctx.lineTo(cx + rx, cy);
-      ctx.lineTo(cx, cy + ry);
-      ctx.lineTo(cx - rx, cy);
-      ctx.closePath();
-      fill(ctx, colors[(x + y) % colors.length]);
-      lead(ctx);
-    }
-  }
-}
+  float facing = clamp(dot(normalize(vWinN), normalize(uPhoton)), 0.0, 1.0);
+  float sky = smoothstep(0.02, 0.22, uElevation);
+  float bright = (1.35 + 0.75 * facing * sky) * (0.92 + 0.08 * vGain);
+  col *= bright;
+  col *= mix(vec3(1.0), uSunColor, 0.4 * facing);
 
-function star(ctx, colors, random, aspect) {
-  const count = Math.max(2, Math.round(aspect * 0.5));
-  const points = 6 + (Math.floor(random() * 2) === 0 ? 0 : 2);
-  for (let s = 0; s < count; s++) {
-    const cy = (s + 0.6) / (count + 0.35);
-    const rx = 0.32;
-    const ry = 0.36 / count;
-    ctx.beginPath();
-    for (let i = 0; i < points * 2; i++) {
-      const radius = i % 2 === 0 ? 1 : 0.42;
-      const angle = (i / (points * 2)) * Math.PI * 2 - Math.PI / 2;
-      const x = 0.5 + Math.cos(angle) * rx * radius;
-      const y = cy + Math.sin(angle) * ry * radius;
-      if (i === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    }
-    ctx.closePath();
-    fill(ctx, colors[s % colors.length]);
-    lead(ctx);
-    ctx.beginPath();
-    ctx.ellipse(0.5, cy, rx * 0.18, ry * 0.18, 0, 0, Math.PI * 2);
-    fill(ctx, colors[(s + 2) % colors.length]);
-    lead(ctx);
-  }
-}
+  vec3 viewDir = normalize(cameraPosition - vWorld);
+  vec3 n = normalize(gl_FrontFacing ? vNormal : -vNormal);
+  float sheen = pow(1.0 - abs(dot(n, viewDir)), 2.2);
+  col += vec3(0.22, 0.24, 0.26) * sheen * (0.08 + 0.16 * facing);
 
-function grisaille(ctx, colors, random, aspect) {
-  ctx.fillStyle = '#d9d3c6';
-  ctx.fillRect(0, 0, 1, 1);
-  const rows = Math.max(4, Math.round(aspect));
-  ctx.beginPath();
-  ctx.moveTo(0.5, 0.02);
-  for (let i = 0; i < rows; i++) {
-    const y = (i + 1) / rows;
-    const swing = (i % 2 === 0 ? 0.16 : -0.16) + (random() - 0.5) * 0.08;
-    ctx.quadraticCurveTo(0.5 + swing, y - 0.5 / rows, 0.5, y * 0.96);
-  }
-  ctx.strokeStyle = '#241e1a';
-  ctx.lineWidth = 0.014;
-  ctx.stroke();
-  for (let i = 0; i < rows; i++) {
-    const cy = (i + 0.5) / rows;
-    const side = i % 2 === 0 ? 0.28 : 0.72;
-    ctx.beginPath();
-    ctx.ellipse(side, cy, 0.1, 0.34 / rows, 0, 0, Math.PI * 2);
-    fill(ctx, colors[i % colors.length]);
-    lead(ctx);
-    ctx.beginPath();
-    ctx.ellipse(0.5, cy, 0.06, 0.2 / rows, 0, 0, Math.PI * 2);
-    fill(ctx, colors[(i + 1) % colors.length]);
-    lead(ctx);
-  }
+  gl_FragColor = vec4(col, 1.0);
 }
+`;
 
-function rgb(color) {
-  return `rgb(${color.map((c) => Math.round(Math.min(1, c) * 255)).join(',')})`;
-}
-
-export function buildGlassMeshes(openings, atlas) {
-  const material = new THREE.MeshStandardMaterial({
-    color: 0xffffff,
-    map: atlas,
-    roughness: 0.16,
-    metalness: 0,
+export function buildGlassMeshes(openings) {
+  const material = new THREE.ShaderMaterial({
+    uniforms: {
+      uPhoton: { value: new THREE.Vector3(0, -0.4, 0.2) },
+      uSunColor: { value: new THREE.Color(1, 0.9, 0.72) },
+      uElevation: { value: 0.45 },
+    },
+    vertexShader: GLASS_VERT,
+    fragmentShader: GLASS_FRAG,
     side: THREE.DoubleSide,
-    emissive: 0xffffff,
-    emissiveMap: atlas,
-    emissiveIntensity: 0.85,
+    toneMapped: true,
     polygonOffset: true,
-    polygonOffsetFactor: 1,
-    polygonOffsetUnits: 1,
+    polygonOffsetFactor: -1,
+    polygonOffsetUnits: -1,
   });
+  material.customProgramCacheKey = () => 'nave-glass-v4';
   const group = new THREE.Group();
   group.name = 'glass';
 
@@ -358,6 +483,7 @@ export function buildGlassMeshes(openings, atlas) {
     const geo = opening.kind === 'circle'
       ? circleGeometry(opening)
       : lancetGeometry(opening);
+    tagGlass(geo, opening);
     placeGlass(geo, opening);
     const mesh = new THREE.Mesh(geo, material);
     mesh.castShadow = false;
@@ -365,6 +491,51 @@ export function buildGlassMeshes(openings, atlas) {
     group.add(mesh);
   }
   return { group, material };
+}
+
+function tagGlass(geo, opening) {
+  const count = geo.attributes.position.count;
+  const seed = new Float32Array(count);
+  const aspect = new Float32Array(count);
+  const rose = new Float32Array(count);
+  const gain = new Float32Array(count);
+  const palA = new Float32Array(count * 3);
+  const palB = new Float32Array(count * 3);
+  const palC = new Float32Array(count * 3);
+  const winN = new Float32Array(count * 3);
+  const arch = new Float32Array(count * 4);
+  const colors = paletteOf(opening.seed).map(toLinear);
+  const roseValue = opening.kind === 'circle' ? 1 : 0;
+  const aspectValue = roseValue ? 1 : opening.height / Math.max(opening.width, 0.4);
+  const nn = opening.normal;
+  const archValue = [
+    opening.width,
+    opening.rise,
+    opening.jamb - opening.sill,
+    opening.height,
+  ];
+  for (let i = 0; i < count; i++) {
+    seed[i] = opening.seed;
+    aspect[i] = aspectValue;
+    rose[i] = roseValue;
+    gain[i] = opening.gain;
+    palA.set(colors[0], i * 3);
+    palB.set(colors[1], i * 3);
+    palC.set(colors[2], i * 3);
+    winN[i * 3] = nn.x;
+    winN[i * 3 + 1] = nn.y;
+    winN[i * 3 + 2] = nn.z;
+    arch.set(archValue, i * 4);
+  }
+  geo.setAttribute('aSeed', new THREE.BufferAttribute(seed, 1));
+  geo.setAttribute('aAspect', new THREE.BufferAttribute(aspect, 1));
+  geo.setAttribute('aRose', new THREE.BufferAttribute(rose, 1));
+  geo.setAttribute('aGain', new THREE.BufferAttribute(gain, 1));
+  geo.setAttribute('aPalA', new THREE.BufferAttribute(palA, 3));
+  geo.setAttribute('aPalB', new THREE.BufferAttribute(palB, 3));
+  geo.setAttribute('aPalC', new THREE.BufferAttribute(palC, 3));
+  geo.setAttribute('aWinN', new THREE.BufferAttribute(winN, 3));
+  geo.setAttribute('aArch', new THREE.BufferAttribute(arch, 4));
 }
 
 function lancetGeometry(opening) {
@@ -410,7 +581,7 @@ function insetLancet(opening, margin) {
 
 function circleGeometry(opening) {
   const radius = Math.max(0.35, opening.radius - 0.04);
-  const geo = new THREE.CircleGeometry(radius, 32);
+  const geo = new THREE.CircleGeometry(radius, 48);
   writeUVs(geo, opening);
   return geo;
 }
@@ -418,17 +589,12 @@ function circleGeometry(opening) {
 function writeUVs(geo, opening) {
   const pos = geo.attributes.position;
   const uv = geo.attributes.uv;
-  const rect = opening.atlas;
   const spanX = opening.kind === 'circle' ? opening.radius * 2 : opening.width;
   const spanY = opening.kind === 'circle' ? opening.radius * 2 : opening.height;
   for (let i = 0; i < pos.count; i++) {
     const gu = pos.getX(i) / spanX + 0.5;
     const gv = pos.getY(i) / spanY + (opening.kind === 'circle' ? 0.5 : 0);
-    uv.setXY(
-      i,
-      rect.x + (rect.z - rect.x) * THREE.MathUtils.clamp(gu, 0, 1),
-      rect.y + (rect.w - rect.y) * THREE.MathUtils.clamp(gv, 0, 1)
-    );
+    uv.setXY(i, THREE.MathUtils.clamp(gu, 0, 1), THREE.MathUtils.clamp(gv, 0, 1));
   }
   uv.needsUpdate = true;
 }

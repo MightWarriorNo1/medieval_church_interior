@@ -148,6 +148,11 @@ function applySun() {
 
   windowUniforms.uSunDir.value.copy(state.photon);
   windowUniforms.uSunColor.value.copy(state.color);
+  if (glassMaterial && glassMaterial.uniforms) {
+    glassMaterial.uniforms.uPhoton.value.copy(state.photon);
+    glassMaterial.uniforms.uSunColor.value.copy(state.color);
+    glassMaterial.uniforms.uElevation.value = state.elevation;
+  }
 
   const warm = hour;
   scene.background.setRGB(
@@ -192,7 +197,7 @@ function rebuild() {
     next.add(makeMesh(mergeParts(parts.dark), darkMat, false));
     next.add(floorMesh);
 
-    const glass = buildGlassMeshes(nextOpenings, nextAtlas);
+    const glass = buildGlassMeshes(nextOpenings);
     next.add(glass.group);
 
     const previous = root;
@@ -254,11 +259,6 @@ function views() {
       fov: 48,
       pos: [0.4, 8.5, length * 0.45],
       target: [params.naveHalf, 16, length * 0.45 + 0.2],
-    },
-    east: {
-      fov: 42,
-      pos: [0, 9.2, length - 16],
-      target: [0, 11.5, length],
     },
   };
 }
