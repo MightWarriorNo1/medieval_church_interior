@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { pointedArchHeight, pointedArchPoints, sectionTop } from '../geom/arch.js';
 import { hoodProfile, sweepProfile, twoOrderProfile } from '../geom/sweep.js';
-import { put, putBox } from '../geom/mesh.js';
+import { put } from '../geom/mesh.js';
 
 // openings.js imports these. Keep the numbers in this file.
 export const PORTAL = { width: 3.15, jamb: 4.15, rise: 2.55 };
@@ -212,41 +212,21 @@ function addRose(stone, radius, cy, z) {
 }
 
 function addEastTracery(stone, p) {
-  const z = p.length - 0.1;
+  const z = p.length - 0.02;
   const { centers, sill, apex, width } = EAST_LIGHTS;
-  const jamb = sill + (apex - sill) * 0.67;
+  const jamb = lightJamb(sill, apex);
   const rise = apex - jamb;
 
-  putBox(stone, 5.9, 0.18, 0.16, 0, jamb - 0.02, z);
-
-  centers.forEach((cx, index) => {
-    putBox(stone, 0.2, jamb - sill, 0.16, cx, sill, z);
-    if (index === 1) {
-      for (const dir of [-1, 1]) {
-        const points = pointedArchPoints(
-          new THREE.Vector3(cx + dir * width * 0.2, jamb + rise * 0.12, z),
-          new THREE.Vector3(1, 0, 0),
-          new THREE.Vector3(0, 1, 0),
-          width * 0.4,
-          rise * 0.7,
-          12
-        );
-        stone.push(sweepProfile(points, hoodProfile(), new THREE.Vector3(0, 0, 1)));
-      }
-      return;
-    }
+  centers.forEach((cx) => {
     const points = pointedArchPoints(
       new THREE.Vector3(cx, jamb, z),
       new THREE.Vector3(1, 0, 0),
       new THREE.Vector3(0, 1, 0),
-      width * 0.72,
-      rise * 0.9,
-      14
+      width + 0.16,
+      rise + 0.06,
+      16
     );
-    stone.push(sweepProfile(points, twoOrderProfile(), new THREE.Vector3(0, 0, 1)));
-    const eye = new THREE.TorusGeometry(0.34, 0.055, 8, 18);
-    eye.translate(cx, apex - rise * 0.38, z);
-    stone.push(eye);
+    stone.push(sweepProfile(points, revealProfile(), new THREE.Vector3(0, 0, 1)));
   });
 
   const r = EAST_OCULUS.ring;
@@ -264,6 +244,15 @@ function addEastTracery(stone, p) {
     spoke.translate(0, cy, z);
     stone.push(spoke);
   }
+}
+
+function revealProfile() {
+  return [
+    [-0.05, -0.02],
+    [0.06, -0.02],
+    [0.06, 0.04],
+    [-0.05, 0.04],
+  ];
 }
 
 export function addFloor(floor, p) {

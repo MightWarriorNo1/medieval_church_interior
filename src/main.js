@@ -255,6 +255,11 @@ function views() {
       pos: [0.4, 8.5, length * 0.45],
       target: [params.naveHalf, 16, length * 0.45 + 0.2],
     },
+    east: {
+      fov: 42,
+      pos: [0, 9.2, length - 16],
+      target: [0, 11.5, length],
+    },
   };
 }
 

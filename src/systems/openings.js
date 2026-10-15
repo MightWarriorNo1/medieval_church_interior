@@ -151,13 +151,13 @@ export function listOpenings(p) {
 
   const aisleX = p.naveHalf + p.aisleWidth / 2;
   EAST_LIGHTS.centers.forEach((cx, index) => {
-    list.push(endLancet(EAST_LIGHTS, 3000 + index, 'east', cx, p.length + 0.35, -1, 1.15));
+    list.push(endLancet(EAST_LIGHTS, 3000 + index, 'east', cx, p.length + 0.08, -1, 1.15));
   });
 
   list.push(circleOpening(
     3100,
     'oculus',
-    new THREE.Vector3(0, EAST_OCULUS.y, p.length + 0.35),
+    new THREE.Vector3(0, EAST_OCULUS.y, p.length + 0.08),
     EAST_OCULUS.hole - 0.08,
     new THREE.Vector3(0, 0, -1),
     0.95
@@ -176,7 +176,7 @@ export function listOpenings(p) {
     const x = side * aisleX;
     const tag = side > 0 ? 1 : 0;
     list.push(endLancet(AISLE_LIGHT, 5000 + tag, 'west-aisle', x, -0.35, 1, 0.65));
-    list.push(endLancet(AISLE_LIGHT, 5100 + tag, 'east-aisle', x, p.length + 0.35, -1, 0.65));
+    list.push(endLancet(AISLE_LIGHT, 5100 + tag, 'east-aisle', x, p.length + 0.08, -1, 0.65));
   }
 
   return list.filter((opening) => opening.height > 0.4 && opening.width > 0.4);
