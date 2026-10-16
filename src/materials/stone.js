@@ -83,6 +83,42 @@ float hash12(vec2 p) {
   return fract((p3.x + p3.y) * p3.z);
 }
 
+// Two tall courses, then one shorter. Big enough to read as ashlar from the west door.
+const float BLOCK_W = 2.05;
+const float COURSE_TALL = 0.86;
+const float COURSE_SHORT = 0.48;
+const float COURSE_PERIOD = COURSE_TALL * 2.0 + COURSE_SHORT;
+
+void wallCourse(float y, out float course, out float fy) {
+  float wrapped = mod(y, COURSE_PERIOD);
+  if (wrapped < 0.0) wrapped += COURSE_PERIOD;
+  float base = floor(y / COURSE_PERIOD) * 3.0;
+  if (wrapped < COURSE_TALL) {
+    course = base;
+    fy = wrapped / COURSE_TALL;
+  } else if (wrapped < COURSE_TALL * 2.0) {
+    course = base + 1.0;
+    fy = (wrapped - COURSE_TALL) / COURSE_TALL;
+  } else {
+    course = base + 2.0;
+    fy = (wrapped - COURSE_TALL * 2.0) / COURSE_SHORT;
+  }
+}
+
+void wallCell(vec2 uv, out float course, out float col, out float fx, out float fy) {
+  wallCourse(uv.y, course, fy);
+  float shift = mod(course, 2.0);
+  if (shift < 0.0) shift += 2.0;
+  float x = uv.x + (shift > 0.5 ? BLOCK_W * 0.5 : 0.0);
+  col = floor(x / BLOCK_W);
+  fx = fract(x / BLOCK_W);
+}
+
+float jointMask(float fx, float fy) {
+  float mortar = smoothstep(0.0, 0.012, fx) * smoothstep(0.0, 0.012, 1.0 - fx);
+  return mortar * smoothstep(0.0, 0.035, fy) * smoothstep(0.0, 0.035, 1.0 - fy);
+}
+
 float stoneField(vec2 uv, vec2 freq) {
   float courseH = freq.y;
   float blockW = freq.x;
@@ -93,11 +129,22 @@ float stoneField(vec2 uv, vec2 freq) {
   float col = floor(x / blockW);
   float fx = fract(x / blockW);
   float fy = fract(uv.y / courseH);
-  float mortar = smoothstep(0.0, 0.055, fx) * smoothstep(0.0, 0.055, 1.0 - fx);
-  mortar *= smoothstep(0.0, 0.07, fy) * smoothstep(0.0, 0.07, 1.0 - fy);
+  float mortar = smoothstep(0.0, 0.04, fx) * smoothstep(0.0, 0.04, 1.0 - fx);
+  mortar *= smoothstep(0.0, 0.045, fy) * smoothstep(0.0, 0.045, 1.0 - fy);
   float id = hash12(vec2(col, course));
   float chisel = hash12(vec2(col * 0.37 + fx * 3.0, course * 0.17 + fy * 5.0));
   return mortar * (0.55 + 0.45 * id) * (0.82 + 0.18 * chisel);
+}
+
+float wallStone(vec2 uv) {
+  float course;
+  float col;
+  float fx;
+  float fy;
+  wallCell(uv, course, col, fx, fy);
+  float id = hash12(vec2(col, course));
+  float chisel = hash12(vec2(col * 0.37 + fx * 3.0, course * 0.17 + fy * 5.0));
+  return jointMask(fx, fy) * (0.55 + 0.45 * id) * (0.82 + 0.18 * chisel);
 }
 
 float alongCoord(vec3 p, vec3 n) {
@@ -110,26 +157,41 @@ float alongCoord(vec3 p, vec3 n) {
 
 float stoneHeight(vec3 p, vec3 n) {
   float wallW = 1.0 - smoothstep(0.42, 0.78, abs(n.y));
-  float wall = stoneField(vec2(alongCoord(p, n), p.y), vec2(0.82, 0.34));
-  float flag = stoneField(p.xz, vec2(1.25, 1.05));
+  float wall = wallStone(vec2(alongCoord(p, n), p.y));
+  float flag = stoneField(p.xz, vec2(1.45, 1.2));
   return mix(flag, wall, wallW);
 }
 
 vec3 stoneColor(vec3 p, vec3 n) {
   float wallW = 1.0 - smoothstep(0.42, 0.78, abs(n.y));
   vec2 wallUv = vec2(alongCoord(p, n), p.y);
+  float wallCourseId;
+  float wallCol;
+  float wallFx;
+  float wallFy;
+  wallCell(wallUv, wallCourseId, wallCol, wallFx, wallFy);
+
   vec2 flagUv = p.xz;
-  float course = floor(mix(flagUv.y / 1.05, wallUv.y / 0.34, wallW));
-  float blockW = mix(1.25, 0.82, wallW);
-  float x = mix(flagUv.x, wallUv.x, wallW);
-  float shift = mod(course, 2.0);
-  if (shift < 0.0) shift += 2.0;
-  x += shift > 0.5 ? blockW * 0.5 : 0.0;
-  float col = floor(x / blockW);
-  float fx = fract(x / blockW);
-  float fy = fract(mix(flagUv.y / 1.05, wallUv.y / 0.34, wallW));
-  float mortar = smoothstep(0.0, 0.05, fx) * smoothstep(0.0, 0.05, 1.0 - fx);
-  mortar *= smoothstep(0.0, 0.065, fy) * smoothstep(0.0, 0.065, 1.0 - fy);
+  float flagCourse = floor(flagUv.y / 1.2);
+  float flagW = 1.45;
+  float flagX = flagUv.x;
+  float flagShift = mod(flagCourse, 2.0);
+  if (flagShift < 0.0) flagShift += 2.0;
+  flagX += flagShift > 0.5 ? flagW * 0.5 : 0.0;
+  float flagCol = floor(flagX / flagW);
+  float flagFx = fract(flagX / flagW);
+  float flagFy = fract(flagUv.y / 1.2);
+
+  float course = mix(flagCourse, wallCourseId, wallW);
+  float col = mix(flagCol, wallCol, wallW);
+  float fx = mix(flagFx, wallFx, wallW);
+  float fy = mix(flagFy, wallFy, wallW);
+  float mortar = mix(
+    smoothstep(0.0, 0.04, flagFx) * smoothstep(0.0, 0.04, 1.0 - flagFx)
+      * smoothstep(0.0, 0.045, flagFy) * smoothstep(0.0, 0.045, 1.0 - flagFy),
+    jointMask(wallFx, wallFy),
+    wallW
+  );
   float id = hash12(vec2(col, course));
   vec3 limestone = vec3(0.64, 0.6, 0.52);
   vec3 block = limestone * (0.58 + 0.55 * id);
@@ -153,7 +215,7 @@ export function createStoneMaterial(uniforms) {
     metalness: 0,
     side: THREE.DoubleSide,
   });
-  material.customProgramCacheKey = () => 'nave-stone-v2';
+  material.customProgramCacheKey = () => 'nave-stone-v3';
   material.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, uniforms);
     shader.vertexShader = shader.vertexShader

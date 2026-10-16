@@ -263,7 +263,88 @@ function views() {
   };
 }
 
+let walking = false;
+const held = new Set();
+let yaw = 0;
+let pitch = 0;
+const lookDir = new THREE.Vector3();
+const moveStep = new THREE.Vector3();
+const hint = document.getElementById('hint');
+const walkButton = document.getElementById('view-walk');
+
+function applyLook() {
+  const cp = Math.cos(pitch);
+  lookDir.set(Math.sin(yaw) * cp, Math.sin(pitch), Math.cos(yaw) * cp);
+  camera.lookAt(camera.position.x + lookDir.x, camera.position.y + lookDir.y, camera.position.z + lookDir.z);
+  controls.target.copy(camera.position).add(lookDir);
+}
+
+function keepOnFloor(pos) {
+  const margin = 0.55;
+  const limitX = params.outerX - margin;
+  pos.x = THREE.MathUtils.clamp(pos.x, -limitX, limitX);
+  pos.z = THREE.MathUtils.clamp(pos.z, 0.4, Math.max(0.8, params.length - 0.4));
+  pos.y = params.eyeHeight;
+  const pierR = 1.05;
+  for (let i = 0; i <= params.bays; i++) {
+    const z = i * params.bayLength;
+    for (const side of [-1, 1]) {
+      const x = side * params.naveHalf;
+      const dx = pos.x - x;
+      const dz = pos.z - z;
+      const dist = Math.hypot(dx, dz);
+      if (dist < pierR && dist > 1e-4) {
+        pos.x = x + (dx / dist) * pierR;
+        pos.z = z + (dz / dist) * pierR;
+      }
+    }
+  }
+}
+
+function setWalk(on) {
+  if (on === walking) return;
+  walking = on;
+  controls.enabled = !on;
+  if (walkButton) walkButton.setAttribute('aria-pressed', on ? 'true' : 'false');
+  if (hint) {
+    hint.textContent = on
+      ? 'WASD to walk. Click the view to look. Esc leaves the walk.'
+      : 'Drag to orbit. Keys 1, 2, 3 jump to those views.';
+  }
+  if (on) {
+    camera.fov = 68;
+    camera.updateProjectionMatrix();
+    camera.position.y = params.eyeHeight;
+    camera.getWorldDirection(lookDir);
+    yaw = Math.atan2(lookDir.x, lookDir.z);
+    pitch = Math.asin(THREE.MathUtils.clamp(lookDir.y, -1, 1));
+    pitch = THREE.MathUtils.clamp(pitch, -1.15, 1.15);
+    keepOnFloor(camera.position);
+    applyLook();
+    canvas.requestPointerLock();
+  } else if (document.pointerLockElement === canvas) {
+    document.exitPointerLock();
+  }
+}
+
+function stepWalk(dt) {
+  const ahead = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw));
+  const right = new THREE.Vector3(ahead.z, 0, -ahead.x);
+  moveStep.set(0, 0, 0);
+  if (held.has('KeyW')) moveStep.add(ahead);
+  if (held.has('KeyS')) moveStep.sub(ahead);
+  if (held.has('KeyD')) moveStep.add(right);
+  if (held.has('KeyA')) moveStep.sub(right);
+  if (moveStep.lengthSq() > 0) {
+    moveStep.normalize().multiplyScalar(3.6 * dt);
+    camera.position.add(moveStep);
+  }
+  keepOnFloor(camera.position);
+  applyLook();
+}
+
 function frame(name) {
+  if (walking) setWalk(false);
   const view = views()[name];
   if (!view) return;
   camera.fov = view.fov;
@@ -312,10 +393,28 @@ listen(qualityLow, 'click', () => {
 listen(document.getElementById('view-west'), 'click', () => frame('west'));
 listen(document.getElementById('view-rose'), 'click', () => frame('rose'));
 listen(document.getElementById('view-aisle'), 'click', () => frame('aisle'));
+listen(walkButton, 'click', () => setWalk(!walking));
+listen(canvas, 'click', () => {
+  if (walking && document.pointerLockElement !== canvas) canvas.requestPointerLock();
+});
+listen(window, 'mousemove', (event) => {
+  if (!walking || document.pointerLockElement !== canvas) return;
+  yaw -= event.movementX * 0.0022;
+  pitch = THREE.MathUtils.clamp(pitch - event.movementY * 0.0022, -1.15, 1.15);
+  applyLook();
+});
 listen(window, 'keydown', (event) => {
+  if (event.target && event.target.tagName === 'INPUT') return;
   if (event.key === '1') frame('west');
   if (event.key === '2') frame('rose');
   if (event.key === '3') frame('aisle');
+  if (event.key === 'Escape') setWalk(false);
+  if (event.code === 'KeyW' || event.code === 'KeyA' || event.code === 'KeyS' || event.code === 'KeyD') {
+    held.add(event.code);
+  }
+});
+listen(window, 'keyup', (event) => {
+  held.delete(event.code);
 });
 
 resize();
@@ -323,8 +422,12 @@ rebuild();
 const shot = query.get('shot') || 'west';
 frame(views()[shot] ? shot : 'west');
 
-renderer.setAnimationLoop(() => {
-  controls.update();
+let lastFrame = performance.now();
+renderer.setAnimationLoop((now) => {
+  const dt = Math.min(0.05, (now - lastFrame) / 1000);
+  lastFrame = now;
+  if (walking) stepWalk(dt);
+  else controls.update();
   renderer.render(scene, camera);
 });
 
