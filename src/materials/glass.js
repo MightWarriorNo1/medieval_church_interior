@@ -447,9 +447,12 @@ void main() {
 
   float facing = clamp(dot(normalize(vWinN), normalize(uPhoton)), 0.0, 1.0);
   float sky = smoothstep(0.02, 0.22, uElevation);
-  float bright = (1.35 + 0.75 * facing * sky) * (0.92 + 0.08 * vGain);
+  // Shade stays readable. A window the sun is behind is clearly brighter.
+  float bright = (1.05 + 1.05 * facing * sky) * (0.92 + 0.08 * vGain);
   col *= bright;
-  col *= mix(vec3(1.0), uSunColor, 0.4 * facing);
+  col *= mix(vec3(0.94, 0.95, 1.0), uSunColor, facing);
+  // Deep reds and blues were falling to black. Lift those, and leave the sunlit panes alone.
+  col = mix(col, sqrt(max(col, vec3(0.0))), (1.0 - facing) * 0.62);
 
   vec3 viewDir = normalize(cameraPosition - vWorld);
   vec3 n = normalize(gl_FrontFacing ? vNormal : -vNormal);
@@ -475,7 +478,7 @@ export function buildGlassMeshes(openings) {
     polygonOffsetFactor: -1,
     polygonOffsetUnits: -1,
   });
-  material.customProgramCacheKey = () => 'nave-glass-v4';
+  material.customProgramCacheKey = () => 'nave-glass-v7';
   const group = new THREE.Group();
   group.name = 'glass';
 
