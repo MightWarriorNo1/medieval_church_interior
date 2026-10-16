@@ -283,7 +283,9 @@ function keepOnFloor(pos) {
   const margin = 0.55;
   const limitX = params.outerX - margin;
   pos.x = THREE.MathUtils.clamp(pos.x, -limitX, limitX);
-  pos.z = THREE.MathUtils.clamp(pos.z, 0.4, Math.max(0.8, params.length - 0.4));
+  // West portal is the way out. The rest of that wall stays solid.
+  pos.z = THREE.MathUtils.clamp(pos.z, -2.6, Math.max(0.8, params.length - 0.4));
+  if (pos.z < 0.05) pos.x = THREE.MathUtils.clamp(pos.x, -1.4, 1.4);
   pos.y = params.eyeHeight;
   const pierR = 1.05;
   for (let i = 0; i <= params.bays; i++) {
@@ -329,7 +331,7 @@ function setWalk(on) {
 
 function stepWalk(dt) {
   const ahead = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw));
-  const right = new THREE.Vector3(ahead.z, 0, -ahead.x);
+  const right = new THREE.Vector3(-ahead.z, 0, ahead.x);
   moveStep.set(0, 0, 0);
   if (held.has('KeyW')) moveStep.add(ahead);
   if (held.has('KeyS')) moveStep.sub(ahead);
@@ -415,6 +417,10 @@ listen(window, 'keydown', (event) => {
 });
 listen(window, 'keyup', (event) => {
   held.delete(event.code);
+});
+// Esc releases the mouse and does not always reach keydown while the pointer is locked.
+listen(document, 'pointerlockchange', () => {
+  if (walking && document.pointerLockElement !== canvas) setWalk(false);
 });
 
 resize();
