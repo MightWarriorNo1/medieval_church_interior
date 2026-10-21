@@ -7,6 +7,8 @@ import { listOpenings } from './systems/openings.js';
 import { createWindowUniforms, packWindows, sunAt } from './lighting/sun.js';
 import { paintGlassAtlas, buildGlassMeshes } from './materials/glass.js';
 import { createStoneMaterial } from './materials/stone.js';
+import { createWoodMaterial } from './materials/wood.js';
+import { createClothMaterial } from './materials/cloth.js';
 import { aimShafts, createShafts, layoutDust } from './lighting/shafts.js';
 
 const canvas = document.getElementById('view');
@@ -57,6 +59,9 @@ windowUniforms.uAtlas.value = new THREE.DataTexture(new Uint8Array([255, 255, 25
 windowUniforms.uAtlas.value.needsUpdate = true;
 
 const stoneMat = createStoneMaterial(windowUniforms);
+const woodMat = createWoodMaterial();
+const frontalMat = createClothMaterial('frontal');
+const linenMat = createClothMaterial('linen');
 const darkMat = new THREE.MeshStandardMaterial({
   color: 0x4e4b47,
   roughness: 1,
@@ -167,6 +172,24 @@ function applySun() {
   showParams();
 }
 
+// West-door check for the wood and cloth shaders. Remove when the pews land.
+function materialSamples() {
+  const group = new THREE.Group();
+  group.name = 'material-test';
+  const wood = new THREE.Mesh(new THREE.BoxGeometry(2.2, 1.5, 0.55), woodMat);
+  wood.position.set(-2.3, 0.75, 8.6);
+  const frontal = new THREE.Mesh(new THREE.BoxGeometry(1.3, 1.7, 0.55), frontalMat);
+  frontal.position.set(0, 0.85, 9.0);
+  const linen = new THREE.Mesh(new THREE.BoxGeometry(1.3, 1.7, 0.55), linenMat);
+  linen.position.set(2.3, 0.85, 8.6);
+  for (const mesh of [wood, frontal, linen]) {
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    group.add(mesh);
+  }
+  return group;
+}
+
 function makeMesh(geometry, material, shadows) {
   const mesh = new THREE.Mesh(geometry, material);
   mesh.castShadow = shadows;
@@ -196,6 +219,7 @@ function rebuild() {
     next.add(makeMesh(mergeParts(parts.stone), stoneMat, true));
     next.add(makeMesh(mergeParts(parts.dark), darkMat, false));
     next.add(floorMesh);
+    next.add(materialSamples());
 
     const glass = buildGlassMeshes(nextOpenings);
     next.add(glass.group);
