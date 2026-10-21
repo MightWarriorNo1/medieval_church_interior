@@ -180,8 +180,11 @@ function makeMesh(geometry, material, shadows) {
 }
 
 function disposeTree(obj) {
+  const seen = new Set();
   obj.traverse((child) => {
-    if (child.geometry) child.geometry.dispose();
+    if (!child.geometry || seen.has(child.geometry)) return;
+    seen.add(child.geometry);
+    child.geometry.dispose();
   });
 }
 
