@@ -65,7 +65,9 @@ vec3 glassLight(vec3 worldPos, vec3 worldNormal) {
     }
     float passed = live * approaching * step(0.15, travel) * inside;
     vec3 tint = uWinColor[i].rgb;
-    if (uQuality > 0.5 && passed > 0.5) {
+    // Branch on the uniform only. A per-pixel passed test here makes the
+    // fetch divergent, and some phones return black for that.
+    if (uQuality > 0.5) {
       vec4 rect = uWinAtlas[i];
       vec2 auv = mix(rect.xy, rect.zw, clamp(guv, 0.0, 1.0));
       tint = texture2D(uAtlas, auv).rgb;

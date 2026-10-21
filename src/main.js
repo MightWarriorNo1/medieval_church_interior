@@ -7,13 +7,10 @@ import { listOpenings } from './systems/openings.js';
 import { createWindowUniforms, packWindows, sunAt } from './lighting/sun.js';
 import { paintGlassAtlas, buildGlassMeshes } from './materials/glass.js';
 import { createStoneMaterial } from './materials/stone.js';
-import { createWoodMaterial } from './materials/wood.js';
-import { createClothMaterial } from './materials/cloth.js';
 import { aimShafts, createShafts, layoutDust } from './lighting/shafts.js';
 
 const canvas = document.getElementById('view');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.08;
@@ -59,9 +56,6 @@ windowUniforms.uAtlas.value = new THREE.DataTexture(new Uint8Array([255, 255, 25
 windowUniforms.uAtlas.value.needsUpdate = true;
 
 const stoneMat = createStoneMaterial(windowUniforms);
-const woodMat = createWoodMaterial();
-const frontalMat = createClothMaterial('frontal');
-const linenMat = createClothMaterial('linen');
 const darkMat = new THREE.MeshStandardMaterial({
   color: 0x4e4b47,
   roughness: 1,
@@ -135,8 +129,12 @@ function showParams() {
   widthOut.textContent = params.naveWidth.toFixed(1);
   crownOut.textContent = params.vaultCrown.toFixed(1);
   const clock = 6 + hour * 12;
-  const hh = Math.floor(clock);
-  const mm = Math.floor((clock - hh) * 60 + 1e-4);
+  let hh = Math.floor(clock);
+  let mm = Math.round((clock - hh) * 60);
+  if (mm >= 60) {
+    hh += 1;
+    mm = 0;
+  }
   hourOut.textContent = `${hh}:${String(mm).padStart(2, '0')}`;
   qualityHigh.setAttribute('aria-pressed', quality === 'high' ? 'true' : 'false');
   qualityLow.setAttribute('aria-pressed', quality === 'low' ? 'true' : 'false');
@@ -160,34 +158,18 @@ function applySun() {
   }
 
   const warm = hour;
+  // These are picked as they look on screen, not as linear light.
   scene.background.setRGB(
     0.62 + warm * 0.22,
     0.72 - warm * 0.08,
-    0.82 - warm * 0.28
+    0.82 - warm * 0.28,
+    THREE.SRGBColorSpace
   );
 
   const chosen = packWindows(openings, state.photon, quality, windowUniforms);
   const beamCount = quality === 'high' ? 6 : 3;
   aimShafts(shafts.beamMeshes, chosen.slice(0, beamCount), state.photon, state.color);
   showParams();
-}
-
-// West-door check for the wood and cloth shaders. Remove when the pews land.
-function materialSamples() {
-  const group = new THREE.Group();
-  group.name = 'material-test';
-  const wood = new THREE.Mesh(new THREE.BoxGeometry(2.2, 1.5, 0.55), woodMat);
-  wood.position.set(-2.3, 0.75, 8.6);
-  const frontal = new THREE.Mesh(new THREE.BoxGeometry(1.3, 1.7, 0.55), frontalMat);
-  frontal.position.set(0, 0.85, 9.0);
-  const linen = new THREE.Mesh(new THREE.BoxGeometry(1.3, 1.7, 0.55), linenMat);
-  linen.position.set(2.3, 0.85, 8.6);
-  for (const mesh of [wood, frontal, linen]) {
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
-    group.add(mesh);
-  }
-  return group;
 }
 
 function makeMesh(geometry, material, shadows) {
@@ -219,7 +201,6 @@ function rebuild() {
     next.add(makeMesh(mergeParts(parts.stone), stoneMat, true));
     next.add(makeMesh(mergeParts(parts.dark), darkMat, false));
     next.add(floorMesh);
-    next.add(materialSamples());
 
     const glass = buildGlassMeshes(nextOpenings);
     next.add(glass.group);
@@ -304,14 +285,20 @@ function applyLook() {
 }
 
 function keepOnFloor(pos) {
-  const margin = 0.55;
-  const limitX = params.outerX - margin;
-  pos.x = THREE.MathUtils.clamp(pos.x, -limitX, limitX);
-  // West portal is the way out. The rest of that wall stays solid.
-  pos.z = THREE.MathUtils.clamp(pos.z, -2.6, Math.max(0.8, params.length - 0.4));
-  if (pos.z < 0.05) pos.x = THREE.MathUtils.clamp(pos.x, -1.4, 1.4);
-  pos.y = params.eyeHeight;
+  // Pilaster bases stick in past the wall line. 0.9 clears them.
+  const limitX = params.outerX - 0.9;
+  const zMax = Math.max(0.8, params.length - 0.4);
   const pierR = 1.05;
+
+  const boxIn = () => {
+    pos.x = THREE.MathUtils.clamp(pos.x, -limitX, limitX);
+    pos.z = THREE.MathUtils.clamp(pos.z, -2.6, zMax);
+    // West portal is the way out. The rest of that wall stays solid.
+    if (pos.z < 0.05) pos.x = THREE.MathUtils.clamp(pos.x, -1.4, 1.4);
+  };
+
+  pos.y = params.eyeHeight;
+  boxIn();
   for (let i = 0; i <= params.bays; i++) {
     const z = i * params.bayLength;
     for (const side of [-1, 1]) {
@@ -319,12 +306,17 @@ function keepOnFloor(pos) {
       const dx = pos.x - x;
       const dz = pos.z - z;
       const dist = Math.hypot(dx, dz);
-      if (dist < pierR && dist > 1e-4) {
-        pos.x = x + (dx / dist) * pierR;
-        pos.z = z + (dz / dist) * pierR;
+      if (dist >= pierR) continue;
+      if (dist < 1e-4) {
+        pos.x = x + pierR;
+        continue;
       }
+      pos.x = x + (dx / dist) * pierR;
+      pos.z = z + (dz / dist) * pierR;
     }
   }
+  // A pier shove can leave you in the west wall. Pull back after.
+  boxIn();
 }
 
 function setWalk(on) {
@@ -389,6 +381,7 @@ function resize() {
   const h = window.innerHeight;
   camera.aspect = w / Math.max(1, h);
   camera.updateProjectionMatrix();
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
   renderer.setSize(w, h, false);
 }
 
@@ -442,6 +435,7 @@ listen(window, 'keydown', (event) => {
 listen(window, 'keyup', (event) => {
   held.delete(event.code);
 });
+listen(window, 'blur', () => held.clear());
 // Esc releases the mouse and does not always reach keydown while the pointer is locked.
 listen(document, 'pointerlockchange', () => {
   if (walking && document.pointerLockElement !== canvas) setWalk(false);
@@ -472,6 +466,7 @@ if (import.meta.hot) {
     stoneMat.dispose();
     darkMat.dispose();
     shafts.dustGeo.dispose();
+    shafts.dustMat.dispose();
     const beamGeo = shafts.beamMeshes[0] && shafts.beamMeshes[0].geometry;
     for (const mesh of shafts.beamMeshes) mesh.material.dispose();
     if (beamGeo) beamGeo.dispose();

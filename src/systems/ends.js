@@ -258,10 +258,11 @@ function revealProfile() {
 export function addFloor(floor, p) {
   const width = p.outerX * 2 + 2.4;
   const depth = p.length + 3.4;
-  const slab = new THREE.BoxGeometry(width, 0.42, depth);
-  slab.translate(0, -0.21, p.length / 2);
+  // Top is the floor. Don't let the slab share a plane with the ground.
+  const slab = new THREE.BoxGeometry(width, 0.1, depth);
+  slab.translate(0, -0.05, p.length / 2);
   floor.push(slab);
 
-  const ground = new THREE.PlaneGeometry(180, 180);
-  put(floor, ground, 0, -0.08, p.length / 2, -Math.PI / 2, 0, 0);
+  const ground = new THREE.PlaneGeometry(1000, 1000);
+  put(floor, ground, 0, -0.11, p.length / 2, -Math.PI / 2, 0, 0);
 }

@@ -14,6 +14,8 @@ export function createShafts(uniforms) {
   cross.rotateY(Math.PI / 2);
   cross.translate(0, 0.5, 0);
   const beamGeo = mergeGeometries([across, cross]);
+  across.dispose();
+  cross.dispose();
   const beamMat = new THREE.ShaderMaterial({
     transparent: true,
     depthWrite: false,
@@ -47,7 +49,7 @@ export function createShafts(uniforms) {
         float along = smoothstep(0.0, 0.12, vLocal.y) * smoothstep(1.0, 0.62, vLocal.y);
         float alpha = radial * along * uGain * smoothstep(0.08, 0.42, facing);
         if (alpha < 0.01) discard;
-        gl_FragColor = vec4(uColor, alpha);
+        gl_FragColor = linearToOutputTexel(vec4(uColor, alpha));
       }
     `,
   });
@@ -61,6 +63,7 @@ export function createShafts(uniforms) {
     beams.add(mesh);
     beamMeshes.push(mesh);
   }
+  beamMat.dispose();
 
   const dustGeo = new THREE.BufferGeometry();
   const count = 1400;
@@ -92,7 +95,7 @@ export function createShafts(uniforms) {
         vec3 light = glassLight(vWorld, normalize(-uSunDir));
         float amount = max(light.r, max(light.g, light.b));
         if (amount < 0.02) discard;
-        gl_FragColor = vec4(light * 1.35, disc * clamp(amount * 1.6, 0.0, 0.8));
+        gl_FragColor = linearToOutputTexel(vec4(light * 1.35, disc * clamp(amount * 1.6, 0.0, 0.8)));
       }
     `,
   });
@@ -101,7 +104,7 @@ export function createShafts(uniforms) {
   dust.renderOrder = 3;
   beams.add(dust);
 
-  return { group: beams, beamMeshes, dustGeo };
+  return { group: beams, beamMeshes, dustGeo, dustMat };
 }
 
 export function layoutDust(dustGeo, params) {

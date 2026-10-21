@@ -220,7 +220,8 @@ function paintCell(ctx, col, row, opening) {
     sum[1] += color[1];
     sum[2] += color[2];
   }
-  return sum.map((channel) => channel / pal.length);
+  // Palette entries are sRGB. The light buffer is linear.
+  return toLinear(sum.map((channel) => channel / pal.length));
 }
 
 const GLASS_VERT = /* glsl */ `
