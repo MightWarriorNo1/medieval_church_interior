@@ -201,6 +201,7 @@ function rebuild() {
     next.add(makeMesh(mergeParts(parts.stone), stoneMat, true));
     next.add(makeMesh(mergeParts(parts.dark), darkMat, false));
     next.add(floorMesh);
+    next.add(parts.wood);
 
     const glass = buildGlassMeshes(nextOpenings);
     next.add(glass.group);
