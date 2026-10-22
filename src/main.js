@@ -4,6 +4,7 @@ import { buildChurch } from './buildChurch.js';
 import { mergeParts } from './geom/mesh.js';
 import { DEFAULTS, minCrown, resolveParams } from './params.js';
 import { woodMat } from './furniture/pews.js';
+import { frontalMat, linenMat } from './materials/cloth.js';
 import { listOpenings } from './systems/openings.js';
 import { createWindowUniforms, packWindows, sunAt } from './lighting/sun.js';
 import { paintGlassAtlas, buildGlassMeshes } from './materials/glass.js';
@@ -206,6 +207,7 @@ function rebuild() {
     next.add(makeMesh(mergeParts(parts.dark), darkMat, false));
     next.add(floorMesh);
     next.add(parts.wood);
+    next.add(parts.sanctuary);
 
     const glass = buildGlassMeshes(nextOpenings);
     next.add(glass.group);
@@ -495,6 +497,8 @@ if (import.meta.hot) {
     for (const off of unlisten) off();
     if (root) disposeTree(root);
     woodMat.dispose();
+    frontalMat.dispose();
+    linenMat.dispose();
     if (glassMaterial) glassMaterial.dispose();
     if (atlas) atlas.dispose();
     stoneMat.dispose();

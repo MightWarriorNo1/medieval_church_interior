@@ -23,8 +23,8 @@ export function buildChurch(p) {
   addVaults(stone, p);
   addUpperWalls(stone, dark, p);
   addEnds(stone, p);
-  addSanctuary(stone, p);
   const wood = addPews(p);
+  const sanctuary = addSanctuary(stone, p);
 
-  return { stone, dark, floor, wood };
+  return { stone, dark, floor, wood, sanctuary };
 }
