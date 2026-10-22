@@ -53,10 +53,26 @@ export function addCandles(p) {
   const group = new THREE.Group();
   group.name = 'candles';
   const geo = stickGeometry();
-  // North side of the mensa. The second stick and the pier sticks come next.
+  const spots = [];
+
+  const put = (x, y, z) => {
+    addStick(group, geo, x, y, z);
+    spots.push({ x, y, z });
+  };
+
   const eastFace = p.length - 1.05;
-  const z = eastFace - 1.15 + 0.1;
-  const y = 0.01 + 0.18 * 3 + 1.05 + 0.026;
-  addStick(group, geo, -0.46, y, z);
+  const altarZ = eastFace - 1.15 + 0.1;
+  const altarY = 0.01 + 0.18 * 3 + 1.05 + 0.026;
+  put(-0.46, altarY, altarZ);
+  put(0.46, altarY, altarZ);
+
+  // Aisle side of the plinth, clear of the pier the walk already pushes out.
+  const beside = 1.22;
+  for (let i = 1; i < p.bays; i += 2) {
+    const z = i * p.bayLength;
+    for (const side of [-1, 1]) put(side * (p.naveHalf + beside), 0.01, z);
+  }
+
+  group.userData.spots = spots;
   return group;
 }
