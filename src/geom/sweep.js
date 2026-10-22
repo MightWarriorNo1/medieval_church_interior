@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 
-// Profile X is wall thickness, Y points into the opening. Vertices aren't shared, so moldings shade flat.
+// Profile x is across the wall, y points into the opening.
+// Vertices aren't shared, so the molding shades flat.
 export function sweepProfile(points, profile, binormal) {
   if (!points || points.length < 2 || !profile || profile.length < 3) {
     return new THREE.BufferGeometry();
@@ -64,7 +65,7 @@ export function circleProfile(radius, segments = 8) {
   return pts;
 }
 
-// Wide shallow soffit, then a smaller order inside it.
+// Wide soffit, smaller order inside it.
 export function twoOrderProfile() {
   return [
     [-0.34, 0.02],

@@ -22,7 +22,7 @@ export function addUpperWalls(stone, dark, p) {
 function baySpan(p, bay) {
   const z0 = bay * p.bayLength;
   const z1 = z0 + p.bayLength;
-  // Tuck the end bays into the west and east walls so the corner doesn't split.
+  // End bays tuck into the west and east walls so the corner doesn't split.
   return [
     bay === 0 ? z0 - 0.08 : z0,
     bay === p.bays - 1 ? z1 + 0.08 : z1,

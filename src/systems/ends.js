@@ -3,7 +3,7 @@ import { pointedArchHeight, pointedArchPoints, sectionTop } from '../geom/arch.j
 import { hoodProfile, sweepProfile, twoOrderProfile } from '../geom/sweep.js';
 import { put } from '../geom/mesh.js';
 
-// openings.js imports these. Keep the numbers in this file.
+// openings.js reads these. Keep the numbers here.
 export const PORTAL = { width: 3.15, jamb: 4.15, rise: 2.55 };
 export const AISLE_LIGHT = { sill: 1.8, apex: 8.8, width: 1.2 };
 export const EAST_LIGHTS = {
@@ -120,7 +120,7 @@ function pointedOpening(path, cx, floorY, width, jambY, rise) {
   const s = width / 2;
   const left = cx - s;
   const right = cx + s;
-  // Clockwise, so the hole subtracts from the counterclockwise wall outline.
+  // Clockwise, opposite the wall outline, so the hole subtracts.
   path.moveTo(right, floorY);
   path.lineTo(right, jambY);
   const segs = 14;
@@ -258,7 +258,7 @@ function revealProfile() {
 export function addFloor(floor, p) {
   const width = p.outerX * 2 + 2.4;
   const depth = p.length + 3.4;
-  // Top is the floor. Don't let the slab share a plane with the ground.
+  // Slab top is the floor. Keep it off the ground plane.
   const slab = new THREE.BoxGeometry(width, 0.1, depth);
   slab.translate(0, -0.05, p.length / 2);
   floor.push(slab);

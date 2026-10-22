@@ -3,7 +3,6 @@ import * as THREE from 'three';
 const DARK = 0x5c3a22;
 const LIGHT = 0x8d6240;
 
-// Lines run along uAlong and repeat across the board, so the grain follows the piece.
 const WOOD_FN = /* glsl */ `
 uniform vec3 uWoodA;
 uniform vec3 uWoodB;
@@ -26,7 +25,7 @@ float woodGrain(vec3 p) {
 }
 `;
 
-// along is the long axis of the piece in world space. A pew across the nave uses +X.
+// `along` is the board direction in world space. Pews pass +X.
 export function createWoodMaterial(along = new THREE.Vector3(1, 0, 0)) {
   const axis = along.clone().normalize();
   const material = new THREE.MeshStandardMaterial({

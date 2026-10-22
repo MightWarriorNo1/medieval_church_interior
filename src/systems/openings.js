@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { AISLE_LIGHT, EAST_LIGHTS, EAST_OCULUS, lightJamb } from './ends.js';
 
-// Wall code reads this too. If a hole moves, change it here.
+// upper.js cuts the wall from this. Move a hole here, not in the wall code.
 export function clerestorySpec(p, side, bay) {
   const zc = (bay + 0.5) * p.bayLength;
   const face = side * p.naveHalf + side * 0.06;
@@ -24,9 +24,8 @@ export function clerestorySpec(p, side, bay) {
     rise,
     planeX: face + side * 0.32,
     normal: new THREE.Vector3(-side, 0, 0),
-    // +X in the pane becomes -Z after the glass is turned onto the wall.
+    // Glass is built in XY, then rotateY(90°). Local +X lands on world -Z.
     axisU: new THREE.Vector3(0, 0, -1),
-    along: 'z',
   });
 }
 
@@ -53,15 +52,12 @@ export function aisleSpec(p, side, bay) {
     planeX: face + side * 0.22,
     normal: new THREE.Vector3(-side, 0, 0),
     axisU: new THREE.Vector3(0, 0, -1),
-    along: 'z',
   });
 }
 
 function lancet(o) {
   const height = o.apex - o.sill;
-  const origin = o.along === 'z'
-    ? new THREE.Vector3(o.planeX, o.sill, o.zc)
-    : new THREE.Vector3(o.zc, o.sill, o.planeX);
+  const origin = new THREE.Vector3(o.planeX, o.sill, o.zc);
   const aim = origin.clone().add(new THREE.Vector3(0, height * 0.46, 0));
   return {
     kind: 'lancet',

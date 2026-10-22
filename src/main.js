@@ -2,7 +2,8 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { buildChurch } from './buildChurch.js';
 import { mergeParts } from './geom/mesh.js';
-import { DEFAULTS, lowestCrown, resolveParams } from './params.js';
+import { DEFAULTS, minCrown, resolveParams } from './params.js';
+import { woodMat } from './furniture/pews.js';
 import { listOpenings } from './systems/openings.js';
 import { createWindowUniforms, packWindows, sunAt } from './lighting/sun.js';
 import { paintGlassAtlas, buildGlassMeshes } from './materials/glass.js';
@@ -109,12 +110,12 @@ hourInput.value = String(hour);
 
 function readParams() {
   const naveWidth = finite(widthInput.value, DEFAULTS.naveWidth);
-  const minCrown = lowestCrown(naveWidth);
-  crownInput.min = minCrown.toFixed(2);
+  const crownMin = minCrown(naveWidth);
+  crownInput.min = crownMin.toFixed(2);
   let crown = finite(crownInput.value, DEFAULTS.vaultCrown);
-  if (crown < minCrown) {
-    crown = minCrown;
-    crownInput.value = minCrown.toFixed(2);
+  if (crown < crownMin) {
+    crown = crownMin;
+    crownInput.value = crownMin.toFixed(2);
   }
 
   return resolveParams({
@@ -158,7 +159,7 @@ function applySun() {
   }
 
   const warm = hour;
-  // These are picked as they look on screen, not as linear light.
+  // Tuned in sRGB against the stone, not as linear light.
   scene.background.setRGB(
     0.62 + warm * 0.22,
     0.72 - warm * 0.08,
@@ -276,6 +277,8 @@ let walking = false;
 const held = new Set();
 let yaw = 0;
 let pitch = 0;
+// Far enough to see the vault crown from the floor.
+const lookLimit = 1.45;
 const lookDir = new THREE.Vector3();
 const moveStep = new THREE.Vector3();
 const hint = document.getElementById('hint');
@@ -288,11 +291,50 @@ function applyLook() {
   controls.target.copy(camera.position).add(lookDir);
 }
 
+function pushCircle(pos, x, z, radius) {
+  const dx = pos.x - x;
+  const dz = pos.z - z;
+  const dist = Math.hypot(dx, dz);
+  if (dist >= radius) return;
+  if (dist < 1e-4) {
+    pos.x = x + radius;
+    return;
+  }
+  pos.x = x + (dx / dist) * radius;
+  pos.z = z + (dz / dist) * radius;
+}
+
+function pushBox(pos, box, pad) {
+  const dx = pos.x - box.x;
+  const dz = pos.z - box.z;
+  const hx = box.hx + pad;
+  const hz = box.hz + pad;
+  const ax = Math.abs(dx);
+  const az = Math.abs(dz);
+  if (ax >= hx || az >= hz) return;
+  if (hx - ax < hz - az) pos.x += (dx < 0 ? -1 : 1) * (hx - ax);
+  else pos.z += (dz < 0 ? -1 : 1) * (hz - az);
+}
+
+function clearPiers(pos) {
+  const pierR = 1.05;
+  for (let i = 0; i <= params.bays; i++) {
+    const z = i * params.bayLength;
+    for (const side of [-1, 1]) pushCircle(pos, side * params.naveHalf, z, pierR);
+  }
+}
+
+function clearPews(pos) {
+  const wood = root && root.getObjectByName('wood');
+  const blocks = wood && wood.userData.blocks;
+  if (!blocks) return;
+  for (let i = 0; i < blocks.length; i++) pushBox(pos, blocks[i], 0.08);
+}
+
 function keepOnFloor(pos) {
   // Pilaster bases stick in past the wall line. 0.9 clears them.
   const limitX = params.outerX - 0.9;
   const zMax = Math.max(0.8, params.length - 0.4);
-  const pierR = 1.05;
 
   const boxIn = () => {
     pos.x = THREE.MathUtils.clamp(pos.x, -limitX, limitX);
@@ -303,23 +345,10 @@ function keepOnFloor(pos) {
 
   pos.y = params.eyeHeight;
   boxIn();
-  for (let i = 0; i <= params.bays; i++) {
-    const z = i * params.bayLength;
-    for (const side of [-1, 1]) {
-      const x = side * params.naveHalf;
-      const dx = pos.x - x;
-      const dz = pos.z - z;
-      const dist = Math.hypot(dx, dz);
-      if (dist >= pierR) continue;
-      if (dist < 1e-4) {
-        pos.x = x + pierR;
-        continue;
-      }
-      pos.x = x + (dx / dist) * pierR;
-      pos.z = z + (dz / dist) * pierR;
-    }
-  }
-  // A pier shove can leave you in the west wall. Pull back after.
+  clearPiers(pos);
+  clearPews(pos);
+  // A pew shove can land you back in a pier, and a pier shove can leave you in the west wall.
+  clearPiers(pos);
   boxIn();
 }
 
@@ -340,7 +369,7 @@ function setWalk(on) {
     camera.getWorldDirection(lookDir);
     yaw = Math.atan2(lookDir.x, lookDir.z);
     pitch = Math.asin(THREE.MathUtils.clamp(lookDir.y, -1, 1));
-    pitch = THREE.MathUtils.clamp(pitch, -1.15, 1.15);
+    pitch = THREE.MathUtils.clamp(pitch, -lookLimit, lookLimit);
     keepOnFloor(camera.position);
     applyLook();
     canvas.requestPointerLock();
@@ -423,7 +452,7 @@ listen(canvas, 'click', () => {
 listen(window, 'mousemove', (event) => {
   if (!walking || document.pointerLockElement !== canvas) return;
   yaw -= event.movementX * 0.0022;
-  pitch = THREE.MathUtils.clamp(pitch - event.movementY * 0.0022, -1.15, 1.15);
+  pitch = THREE.MathUtils.clamp(pitch - event.movementY * 0.0022, -lookLimit, lookLimit);
   applyLook();
 });
 listen(window, 'keydown', (event) => {
@@ -465,6 +494,7 @@ if (import.meta.hot) {
     renderer.setAnimationLoop(null);
     for (const off of unlisten) off();
     if (root) disposeTree(root);
+    woodMat.dispose();
     if (glassMaterial) glassMaterial.dispose();
     if (atlas) atlas.dispose();
     stoneMat.dispose();

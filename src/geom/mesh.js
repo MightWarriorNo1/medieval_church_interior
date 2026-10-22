@@ -20,7 +20,7 @@ export function put(list, geo, x = 0, y = 0, z = 0, rotX = 0, rotY = 0, rotZ = 0
   list.push(geo);
 }
 
-// Box is centred on x/z. y is the bottom, not the middle.
+// y is the bottom of the box, not the centre. x and z are centred.
 export function putBox(list, w, h, d, x, y, z) {
   const geo = new THREE.BoxGeometry(w, h, d);
   geo.translate(x, y + h / 2, z);
@@ -61,7 +61,7 @@ export function mergeParts(parts) {
   return merged;
 }
 
-// yBottom / yTop can be numbers or functions of z. A run is skipped where the top drops below the bottom.
+// yBottom / yTop are numbers or functions of z. A slice is skipped once the top drops through the bottom.
 export function variableWall(x, thickness, z0, z1, yBottom, yTop, segments = 16) {
   const x0 = x - thickness / 2;
   const x1 = x + thickness / 2;
@@ -81,8 +81,8 @@ export function variableWall(x, thickness, z0, z1, yBottom, yTop, segments = 16)
     const a = samples[i];
     const b = samples[i + 1];
     if (!a.ok || !b.ok) continue;
-    // Cap wherever a run starts or stops, not only at the wall's ends.
-    // A window that cuts the middle would otherwise leave the thickness open.
+    // Cap a run wherever it starts or stops, including around a window.
+    // Otherwise the wall thickness is left open.
     const prevSolid = i > 0 && samples[i - 1].ok;
     const nextSolid = i + 2 < samples.length && samples[i + 2].ok;
     prism(

@@ -73,6 +73,15 @@ button[aria-pressed='true'] {
   margin-top: 8px;
 }
 
+#err:empty {
+  display: none;
+}
+
 #err {
   color: #ffb4a8;
+}
+
+button:focus-visible {
+  outline: 2px solid #f3d7a1;
+  outline-offset: 2px;
 }

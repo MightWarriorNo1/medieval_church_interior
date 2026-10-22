@@ -8,14 +8,14 @@ const AISLE_HALF = 1.2;
 const PIER_REACH = 0.85;
 const PIER_GAP = 0.42;
 
-// Written out so the pitch is not one repeated number. The fourteenth gap opens a crossing.
+// Uneven gaps. Index 14 gets an extra 0.7, which reads as a crossing.
 const GAPS = [1.02, 1.15, 1.0, 1.09, 1.2, 1.04, 1.12, 1.07];
 const NUDGE = [0, 0.04, -0.025, 0.015, -0.045, 0.03, -0.01, 0.02];
 
-// Grain runs along the seat, which is the long axis of the pew.
-const woodMat = createWoodMaterial(new THREE.Vector3(1, 0, 0));
+// Grain follows the seat, which is along X.
+export const woodMat = createWoodMaterial(new THREE.Vector3(1, 0, 0));
 
-// One pew in local space. The back faces west, so the door sees the board.
+// Back board sits on local -Z, which stays west. Don't rotate these.
 function pewGeometry(length) {
   const parts = [];
   const half = length / 2;
@@ -26,38 +26,47 @@ function pewGeometry(length) {
   return mergeParts(parts);
 }
 
-function placeBank(wood, geo, side, center, eastClear) {
-  const phase = side > 0 ? 0 : 3;
-  const halfDepth = (SEAT_D + 0.1) / 2;
-  let z = 3.55;
-  for (let i = 0; z + halfDepth < eastClear; i += 1) {
-    const pew = new THREE.Mesh(geo, woodMat);
-    pew.name = 'pew';
-    pew.castShadow = true;
-    pew.receiveShadow = true;
-    const nudge = NUDGE[(i + phase) % NUDGE.length] * side;
-    pew.position.set(side * center + nudge, 0, z);
-    wood.add(pew);
-    let gap = GAPS[i % GAPS.length];
-    if (i === 14) gap += 0.7;
-    z += gap;
+function spotList(p) {
+  const outerFace = p.naveHalf - PIER_REACH - PIER_GAP;
+  const length = outerFace - AISLE_HALF - END_T;
+  const span = (length + END_T) / 2;
+  const center = AISLE_HALF + span;
+  // East bay stays empty.
+  const eastClear = p.length - p.bayLength - 1.6;
+  const hz = (SEAT_D + 0.1) / 2;
+  // End boards stick out past the seat by END_T.
+  const hx = length / 2 + END_T;
+  const spots = [];
+
+  for (const side of [1, -1]) {
+    const phase = side > 0 ? 0 : 3;
+    let z = 3.55;
+    for (let i = 0; z + hz < eastClear; i += 1) {
+      const nudge = NUDGE[(i + phase) % NUDGE.length] * side;
+      spots.push({ x: side * center + nudge, z, hx, hz, length });
+      let gap = GAPS[i % GAPS.length];
+      if (i === 14) gap += 0.7;
+      z += gap;
+    }
   }
+  return spots;
 }
 
 export function addPews(p) {
   const wood = new THREE.Group();
   wood.name = 'wood';
-  wood.userData.bayLength = p.bayLength;
+  const spots = spotList(p);
+  wood.userData.blocks = spots;
+  if (!spots.length) return wood;
 
-  const outerFace = p.naveHalf - PIER_REACH - PIER_GAP;
-  const length = outerFace - AISLE_HALF - END_T;
-  const halfExtent = (length + END_T) / 2;
-  const center = AISLE_HALF + halfExtent;
-  const geo = pewGeometry(length);
-  // Last bay stays clear for the chancel steps.
-  const eastClear = p.length - p.bayLength - 1.6;
-
-  placeBank(wood, geo, 1, center, eastClear);
-  placeBank(wood, geo, -1, center, eastClear);
+  const geo = pewGeometry(spots[0].length);
+  for (const spot of spots) {
+    const pew = new THREE.Mesh(geo, woodMat);
+    pew.name = 'pew';
+    pew.castShadow = true;
+    pew.receiveShadow = true;
+    pew.position.set(spot.x, 0, spot.z);
+    wood.add(pew);
+  }
   return wood;
 }
