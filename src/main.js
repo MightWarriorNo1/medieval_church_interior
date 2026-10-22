@@ -5,6 +5,7 @@ import { mergeParts } from './geom/mesh.js';
 import { DEFAULTS, minCrown, resolveParams } from './params.js';
 import { woodMat } from './furniture/pews.js';
 import { frontalMat, linenMat } from './materials/cloth.js';
+import { bookMat, postMat } from './furniture/sanctuary.js';
 import { listOpenings } from './systems/openings.js';
 import { createWindowUniforms, packWindows, sunAt } from './lighting/sun.js';
 import { paintGlassAtlas, buildGlassMeshes } from './materials/glass.js';
@@ -499,6 +500,8 @@ if (import.meta.hot) {
     woodMat.dispose();
     frontalMat.dispose();
     linenMat.dispose();
+    bookMat.dispose();
+    postMat.dispose();
     if (glassMaterial) glassMaterial.dispose();
     if (atlas) atlas.dispose();
     stoneMat.dispose();
