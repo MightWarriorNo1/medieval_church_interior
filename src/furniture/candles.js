@@ -7,6 +7,12 @@ export const brassMat = new THREE.MeshStandardMaterial({
   metalness: 0.84,
 });
 
+const flameMat = new THREE.MeshBasicMaterial({ color: 0xffc56a });
+const FLAME_Y = 0.45;
+const MAX_LIGHTS = 8;
+
+export { flameMat };
+
 // One stick. Base, stem, and cup share this geometry so every later copy is the same mesh.
 function stickGeometry() {
   const parts = [];
@@ -74,5 +80,24 @@ export function addCandles(p) {
   }
 
   group.userData.spots = spots;
+
+  const flameGeo = new THREE.ConeGeometry(0.018, 0.08, 7);
+  flameGeo.translate(0, 0.04, 0);
+  const lights = [];
+  for (let i = 0; i < spots.length; i += 1) {
+    const spot = spots[i];
+    const flame = new THREE.Mesh(flameGeo, flameMat);
+    flame.name = 'flame';
+    flame.position.set(spot.x, spot.y + FLAME_Y, spot.z);
+    group.add(flame);
+    if (i >= MAX_LIGHTS) continue;
+    const light = new THREE.PointLight(0xffb15a, 14, 4.6, 2);
+    light.position.copy(flame.position);
+    light.castShadow = false;
+    light.userData.altar = i < 2;
+    group.add(light);
+    lights.push(light);
+  }
+  group.userData.lights = lights;
   return group;
 }

@@ -6,7 +6,7 @@ import { DEFAULTS, minCrown, resolveParams } from './params.js';
 import { woodMat } from './furniture/pews.js';
 import { frontalMat, linenMat } from './materials/cloth.js';
 import { bookMat, postMat } from './furniture/sanctuary.js';
-import { brassMat } from './furniture/candles.js';
+import { brassMat, flameMat } from './furniture/candles.js';
 import { listOpenings } from './systems/openings.js';
 import { floorWestZ, PORTAL } from './systems/ends.js';
 import { PIER_PLINTH } from './systems/piers.js';
@@ -197,6 +197,7 @@ function makeMesh(geometry, material, shadows) {
 function disposeTree(obj) {
   const seen = new Set();
   obj.traverse((child) => {
+    if (child.isLight && child.dispose) child.dispose();
     if (!child.geometry || seen.has(child.geometry)) return;
     seen.add(child.geometry);
     child.geometry.dispose();
@@ -562,6 +563,7 @@ if (import.meta.hot) {
     bookMat.dispose();
     postMat.dispose();
     brassMat.dispose();
+    flameMat.dispose();
     if (glassMaterial) glassMaterial.dispose();
     if (atlas) atlas.dispose();
     stoneMat.dispose();
