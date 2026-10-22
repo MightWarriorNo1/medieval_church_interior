@@ -1,6 +1,7 @@
 import { addArcade } from './systems/arcade.js';
 import { addEnds, addFloor } from './systems/ends.js';
 import { addPews } from './furniture/pews.js';
+import { addSanctuary } from './furniture/sanctuary.js';
 import { addPiers } from './systems/piers.js';
 import { addUpperWalls } from './systems/upper.js';
 import { addVaults } from './systems/vault.js';
@@ -22,6 +23,7 @@ export function buildChurch(p) {
   addVaults(stone, p);
   addUpperWalls(stone, dark, p);
   addEnds(stone, p);
+  addSanctuary(stone, p);
   const wood = addPews(p);
 
   return { stone, dark, floor, wood };
