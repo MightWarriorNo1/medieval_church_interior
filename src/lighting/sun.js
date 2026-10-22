@@ -26,7 +26,7 @@ export function createWindowUniforms() {
   };
 }
 
-// 0 is about 6am, 1 is about 6pm. +X is south, so the sun stays on that side.
+// 0 is about 6am, 1 about 6pm. +X is south and the sun stays over there.
 export function sunAt(hour, target) {
   const t = THREE.MathUtils.clamp(hour, 0.02, 0.98);
   const azimuth = THREE.MathUtils.lerp(-1.05, 1.05, t);
@@ -44,8 +44,8 @@ export function sunAt(hour, target) {
   };
 }
 
-// Brightest openings the sun is actually hitting. The stone shader loops a fixed 12
-// so the Adreno test GPU doesn't have to compile a dynamic break.
+// Brightest openings the sun is actually on. Fixed loop of 12: a dynamic
+// break failed to compile on the Adreno we tested.
 export function packWindows(openings, photon, quality, uniforms) {
   const maxCount = quality === 'high' ? MAX_WINDOWS : 4;
   const facing = [];

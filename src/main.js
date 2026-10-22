@@ -7,6 +7,8 @@ import { woodMat } from './furniture/pews.js';
 import { frontalMat, linenMat } from './materials/cloth.js';
 import { bookMat, postMat } from './furniture/sanctuary.js';
 import { listOpenings } from './systems/openings.js';
+import { floorWestZ, PORTAL } from './systems/ends.js';
+import { PIER_PLINTH } from './systems/piers.js';
 import { createWindowUniforms, packWindows, sunAt } from './lighting/sun.js';
 import { paintGlassAtlas, buildGlassMeshes } from './materials/glass.js';
 import { createStoneMaterial } from './materials/stone.js';
@@ -23,7 +25,7 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0xc5d0d8);
 
-const camera = new THREE.PerspectiveCamera(62, 1, 0.12, 260);
+const camera = new THREE.PerspectiveCamera(62, 1, 0.12, 320);
 const controls = new OrbitControls(camera, canvas);
 controls.enableDamping = true;
 controls.dampingFactor = 0.08;
@@ -34,6 +36,7 @@ controls.maxDistance = 80;
 const hemi = new THREE.HemisphereLight(0xd5e2ee, 0x8a847c, 0.85);
 scene.add(hemi);
 
+// Stone shader samples directional shadow 0, so this light has to stay first.
 const sun = new THREE.DirectionalLight(0xfff1e2, 2.35);
 const sunAim = new THREE.Vector3();
 sun.castShadow = true;
@@ -103,9 +106,17 @@ const qBays = queryNumber('bays');
 const qWidth = queryNumber('width');
 const qCrown = queryNumber('crown');
 const qHour = queryNumber('hour');
-if (qBays !== null) baysInput.value = String(Math.round(qBays));
-if (qWidth !== null) widthInput.value = String(qWidth);
-if (qCrown !== null) crownInput.value = String(qCrown);
+function clampInput(input, value) {
+  let n = value;
+  const lo = Number(input.min);
+  const hi = Number(input.max);
+  if (Number.isFinite(lo)) n = Math.max(lo, n);
+  if (Number.isFinite(hi)) n = Math.min(hi, n);
+  input.value = String(n);
+}
+if (qBays !== null) clampInput(baysInput, Math.round(qBays));
+if (qWidth !== null) clampInput(widthInput, qWidth);
+if (qCrown !== null) clampInput(crownInput, qCrown);
 if (qHour !== null) hour = Math.min(0.98, Math.max(0.02, qHour));
 if (query.get('quality') === 'low') quality = 'low';
 hourInput.value = String(hour);
@@ -161,7 +172,7 @@ function applySun() {
   }
 
   const warm = hour;
-  // Tuned in sRGB against the stone, not as linear light.
+  // sRGB on purpose. Linear here goes chalky against the stone.
   scene.background.setRGB(
     0.62 + warm * 0.22,
     0.72 - warm * 0.08,
@@ -268,6 +279,7 @@ function views() {
       pos: [params.naveHalf + params.aisleWidth * 0.42, params.eyeHeight, length * 0.22],
       target: [0, 8.5, length * 0.58],
     },
+    // not in the hud. ?shot=bay
     bay: {
       fov: 48,
       pos: [0.4, 8.5, length * 0.45],
@@ -277,21 +289,29 @@ function views() {
 }
 
 let walking = false;
+let orbitFov = camera.fov;
 const held = new Set();
 let yaw = 0;
 let pitch = 0;
-// Far enough to see the vault crown from the floor.
-const lookLimit = 1.45;
+const lookLimit = 1.45; // still catches the crown from the floor
 const lookDir = new THREE.Vector3();
 const moveStep = new THREE.Vector3();
 const hint = document.getElementById('hint');
 const walkButton = document.getElementById('view-walk');
 
+function stopOrbitDrift() {
+  // A drag that was still damping when walk started kicks the camera on the way out.
+  controls._sphericalDelta.set(0, 0, 0);
+  controls._panOffset.set(0, 0, 0);
+  controls._scale = 1;
+}
+
 function applyLook() {
   const cp = Math.cos(pitch);
   lookDir.set(Math.sin(yaw) * cp, Math.sin(pitch), Math.cos(yaw) * cp);
-  camera.lookAt(camera.position.x + lookDir.x, camera.position.y + lookDir.y, camera.position.z + lookDir.z);
-  controls.target.copy(camera.position).add(lookDir);
+  // Orbit needs a target out in front. A unit look vector leaves you circling your nose.
+  controls.target.copy(camera.position).addScaledVector(lookDir, 6);
+  camera.lookAt(controls.target);
 }
 
 function pushCircle(pos, x, z, radius) {
@@ -320,10 +340,14 @@ function pushBox(pos, box, pad) {
 }
 
 function clearPiers(pos) {
-  const pierR = 1.05;
+  // Square plinth. A circle big enough for the corners eats the aisle, and a
+  // smaller one lets you walk through the corners.
+  const half = PIER_PLINTH / 2;
   for (let i = 0; i <= params.bays; i++) {
     const z = i * params.bayLength;
-    for (const side of [-1, 1]) pushCircle(pos, side * params.naveHalf, z, pierR);
+    for (const side of [-1, 1]) {
+      pushBox(pos, { x: side * params.naveHalf, z, hx: half, hz: half }, 0.06);
+    }
   }
 }
 
@@ -334,33 +358,47 @@ function clearPews(pos) {
   for (let i = 0; i < blocks.length; i++) pushBox(pos, blocks[i], 0.08);
 }
 
-function clearSteps(pos) {
+function clearSanctuary(pos) {
   const sanctuary = root && root.getObjectByName('sanctuary');
   const blocks = sanctuary && sanctuary.userData.blocks;
   if (!blocks) return;
-  for (let i = 0; i < blocks.length; i++) pushBox(pos, blocks[i], 0.2);
+  for (let i = 0; i < blocks.length; i++) {
+    const block = blocks[i];
+    pushBox(pos, block, block.pad == null ? 0.2 : block.pad);
+  }
+}
+
+function clearJambs(pos) {
+  const x = PORTAL.width / 2 + 0.28;
+  pushCircle(pos, -x, 0.15, 0.2);
+  pushCircle(pos, x, 0.15, 0.2);
 }
 
 function keepOnFloor(pos) {
-  // Pilaster bases stick in past the wall line. 0.9 clears them.
+  // Pilaster bases sit inboard of the aisle wall.
   const limitX = params.outerX - 0.9;
   const zMax = Math.max(0.8, params.length - 0.4);
+  const zMin = floorWestZ() + 0.25;
+  const door = PORTAL.width * 0.5 - 0.18;
 
   const boxIn = () => {
     pos.x = THREE.MathUtils.clamp(pos.x, -limitX, limitX);
-    pos.z = THREE.MathUtils.clamp(pos.z, -2.6, zMax);
-    // West portal is the way out. The rest of that wall stays solid.
-    if (pos.z < 0.05) pos.x = THREE.MathUtils.clamp(pos.x, -1.4, 1.4);
+    pos.z = THREE.MathUtils.clamp(pos.z, zMin, zMax);
+    // Only the portal breaks the west wall.
+    if (pos.z < 0.05) pos.x = THREE.MathUtils.clamp(pos.x, -door, door);
   };
 
   pos.y = params.eyeHeight;
   boxIn();
   clearPiers(pos);
   clearPews(pos);
-  clearSteps(pos);
-  // A shove can land you back in a pier, or up on the steps.
+  clearSanctuary(pos);
+  clearJambs(pos);
+  // One push can drop you into the thing you just left.
   clearPiers(pos);
-  clearSteps(pos);
+  clearPews(pos);
+  clearSanctuary(pos);
+  clearJambs(pos);
   boxIn();
 }
 
@@ -368,6 +406,7 @@ function setWalk(on) {
   if (on === walking) return;
   walking = on;
   controls.enabled = !on;
+  stopOrbitDrift();
   if (walkButton) walkButton.setAttribute('aria-pressed', on ? 'true' : 'false');
   if (hint) {
     hint.textContent = on
@@ -375,6 +414,7 @@ function setWalk(on) {
       : 'Drag to orbit. Keys 1, 2, 3 jump to those views.';
   }
   if (on) {
+    orbitFov = camera.fov;
     camera.fov = 68;
     camera.updateProjectionMatrix();
     camera.position.y = params.eyeHeight;
@@ -385,8 +425,10 @@ function setWalk(on) {
     keepOnFloor(camera.position);
     applyLook();
     canvas.requestPointerLock();
-  } else if (document.pointerLockElement === canvas) {
-    document.exitPointerLock();
+  } else {
+    camera.fov = orbitFov;
+    camera.updateProjectionMatrix();
+    if (document.pointerLockElement === canvas) document.exitPointerLock();
   }
 }
 
@@ -414,7 +456,7 @@ function frame(name) {
   camera.position.set(view.pos[0], view.pos[1], view.pos[2]);
   camera.updateProjectionMatrix();
   controls.target.set(view.target[0], view.target[1], view.target[2]);
-  // Damping would otherwise ease away from the preset.
+  // Leave damping on and the preset drifts off.
   const damping = controls.enableDamping;
   controls.enableDamping = false;
   controls.update();
@@ -481,7 +523,7 @@ listen(window, 'keyup', (event) => {
   held.delete(event.code);
 });
 listen(window, 'blur', () => held.clear());
-// Esc releases the mouse and does not always reach keydown while the pointer is locked.
+// While the pointer is locked, Esc often never arrives as a keydown.
 listen(document, 'pointerlockchange', () => {
   if (walking && document.pointerLockElement !== canvas) setWalk(false);
 });
@@ -496,7 +538,13 @@ renderer.setAnimationLoop((now) => {
   const dt = Math.min(0.05, (now - lastFrame) / 1000);
   lastFrame = now;
   if (walking) stepWalk(dt);
-  else controls.update();
+  else {
+    controls.update();
+    if (camera.position.y < 0.4) {
+      camera.position.y = 0.4;
+      camera.lookAt(controls.target);
+    }
+  }
   renderer.render(scene, camera);
 });
 

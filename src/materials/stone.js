@@ -55,8 +55,8 @@ vec3 glassLight(vec3 worldPos, vec3 worldNormal) {
       float halfW = uWinShape[i].x;
       float jamb = uWinShape[i].y;
       float rise = uWinShape[i].z;
-      // w on the axes is the real opening. halfW is a bit smaller so the
-      // splash stops short of the jamb.
+      // axis w is the real opening. halfW is pulled in so the splash
+      // doesn't paint the jamb.
       float span = max(uWinAxisU[i].w * 2.0, 0.05);
       float height = max(uWinAxisV[i].w, 0.05);
       float arch = jamb + pointedArchHeight(local.x, span, rise);
@@ -65,8 +65,8 @@ vec3 glassLight(vec3 worldPos, vec3 worldNormal) {
     }
     float passed = live * approaching * step(0.15, travel) * inside;
     vec3 tint = uWinColor[i].rgb;
-    // Branch on the uniform only. A per-pixel passed test here makes the
-    // fetch divergent, and some phones return black for that.
+    // Branch on the uniform. A per-pixel test here makes the fetch
+    // divergent, and some phones return black.
     if (uQuality > 0.5) {
       vec4 rect = uWinAtlas[i];
       vec2 auv = mix(rect.xy, rect.zw, clamp(guv, 0.0, 1.0));
@@ -85,7 +85,7 @@ float hash12(vec2 p) {
   return fract((p3.x + p3.y) * p3.z);
 }
 
-// Two tall courses, then one shorter. Big enough to read as ashlar from the west door.
+// Two tall courses, then a short one. Has to read from the west door.
 const float BLOCK_W = 2.05;
 const float COURSE_TALL = 0.86;
 const float COURSE_SHORT = 0.48;
@@ -234,7 +234,7 @@ export function createStoneMaterial(uniforms) {
       )
       .replace(
         '#include <roughnessmap_fragment>',
-        `#include <roughnessmap_fragment>\nroughnessFactor = mix(0.96, 0.78, stoneHeight(vWorldPos, normalize(vWorldNormal)));`
+        `#include <roughnessmap_fragment>\nroughnessFactor = mix(0.96, 0.78, stoneHeight(vWorldPos, normalize(gl_FrontFacing ? vWorldNormal : -vWorldNormal)));`
       )
       .replace(
         '#include <normal_fragment_maps>',

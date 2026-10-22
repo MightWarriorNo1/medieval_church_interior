@@ -91,7 +91,7 @@ export function createShafts(uniforms) {
         vec2 pc = gl_PointCoord * 2.0 - 1.0;
         float disc = 1.0 - dot(pc, pc);
         if (disc < 0.0) discard;
-        // Points have no normal. Pass the sun so the ndotl term stays lit.
+        // Points have no normal. Feed the sun in so ndotl doesn't go dark.
         vec3 light = glassLight(vWorld, normalize(-uSunDir));
         float amount = max(light.r, max(light.g, light.b));
         if (amount < 0.02) discard;

@@ -22,7 +22,7 @@ const bookMat = new THREE.MeshStandardMaterial({
 
 export { postMat, bookMat };
 
-// Three steps in the east bay. Each box is only its own tread, so the risers do not overlap.
+// Each tread is its own box. Stacked boxes z-fight on the riser.
 function addSteps(stone, p) {
   const halfW = p.naveHalf - 0.85 - 0.32;
   const width = halfW * 2;
@@ -67,32 +67,38 @@ export function addSanctuary(stone, p) {
   cloth.add(clothBox(ALTAR_W - 0.08, ALTAR_H - 0.08, 0.02, 0, top.y + 0.04, frontZ - 0.016, frontalMat));
   cloth.add(clothBox(ALTAR_W + 0.1, 0.022, ALTAR_D + 0.1, 0, top.y + ALTAR_H + 0.004, z - 0.04, linenMat));
   cloth.add(clothBox(ALTAR_W + 0.1, 0.07, 0.02, 0, top.y + ALTAR_H - 0.066, frontZ - 0.04, linenMat));
-  cloth.add(lectern(p));
-  // One block for the whole flight. The walk meets the west riser and does not climb.
+  const spot = lecternSpot(top);
+  cloth.add(lectern(spot));
+  // Whole flight is one block. You meet the west riser and stay on the floor.
   const depth = top.east - top.bottomWest;
-  cloth.userData.blocks = [{
-    x: 0,
-    z: top.bottomWest + depth / 2,
-    hx: top.halfW,
-    hz: depth / 2,
-  }];
+  cloth.userData.blocks = [
+    {
+      x: 0,
+      z: top.bottomWest + depth / 2,
+      hx: top.halfW,
+      hz: depth / 2,
+    },
+    { x: spot.x, z: spot.z, hx: 0.4, hz: 0.36, pad: 0.12 },
+  ];
   return cloth;
 }
 
-// North of the altar, on the floor at the west end of the flight. The desk tips toward the door.
-function lectern(p) {
-  const eastFace = p.length - WALL_GAP;
-  const bottomWest = eastFace - TOP_DEPTH - 2 * TREAD;
+// In front of the steps, north side. Far enough that the step pad doesn't swallow it.
+function lecternSpot(top) {
+  return { x: -1.8, z: top.bottomWest - 0.95 };
+}
+
+function lectern(spot) {
   const stand = new THREE.Group();
   stand.name = 'lectern';
-  stand.position.set(-1.8, 0, bottomWest - 0.58);
+  stand.position.set(spot.x, 0, spot.z);
 
   stand.add(clothBox(0.46, 0.06, 0.34, 0, 0, 0, woodMat));
   stand.add(clothBox(0.1, 1.02, 0.1, 0, 0.06, 0, postMat));
 
   const slope = new THREE.Group();
   slope.position.set(0, 1.1, 0.02);
-  slope.rotation.x = -0.46;
+  slope.rotation.x = -0.46; // tips back toward the door
   const desk = clothBox(0.62, 0.04, 0.42, 0, 0, 0, woodMat);
   const book = clothBox(0.36, 0.02, 0.26, 0, 0.042, -0.02, bookMat);
   slope.add(desk, book);

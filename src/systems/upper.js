@@ -22,7 +22,7 @@ export function addUpperWalls(stone, dark, p) {
 function baySpan(p, bay) {
   const z0 = bay * p.bayLength;
   const z1 = z0 + p.bayLength;
-  // End bays tuck into the west and east walls so the corner doesn't split.
+  // End bays run into the west and east walls. Otherwise the corner cracks.
   return [
     bay === 0 ? z0 - 0.08 : z0,
     bay === p.bays - 1 ? z1 + 0.08 : z1,
@@ -120,7 +120,7 @@ function addClerestory(stone, p, side, bay) {
 
   addHood(stone, face, side, zcBay, jambTop - 0.02, winW + 0.45, rise + 0.35);
 
-  // 0 two lights under a circle, 1 three lights, 2 a circle in the head
+  // 0 pair under a circle, 1 three lights, 2 circle in the head
   const pattern = Math.abs(spec.seed) % 3;
   if (pattern === 0) {
     const subW = winW * 0.46;

@@ -3,7 +3,7 @@ import { pointedArchHeight, pointedArchPoints, sectionTop } from '../geom/arch.j
 import { hoodProfile, sweepProfile, twoOrderProfile } from '../geom/sweep.js';
 import { put } from '../geom/mesh.js';
 
-// openings.js reads these. Keep the numbers here.
+// openings.js uses these for the glass. Keep the two in step.
 export const PORTAL = { width: 3.15, jamb: 4.15, rise: 2.55 };
 export const AISLE_LIGHT = { sill: 1.8, apex: 8.8, width: 1.2 };
 export const EAST_LIGHTS = {
@@ -120,7 +120,7 @@ function pointedOpening(path, cx, floorY, width, jambY, rise) {
   const s = width / 2;
   const left = cx - s;
   const right = cx + s;
-  // Clockwise, opposite the wall outline, so the hole subtracts.
+  // Opposite winding from the wall outline, or the hole fills in.
   path.moveTo(right, floorY);
   path.lineTo(right, jambY);
   const segs = 14;
@@ -255,14 +255,22 @@ function revealProfile() {
   ];
 }
 
+// Past the west wall. keepOnFloor stops on this, so don't let the two drift.
+const SLAB_OVERHANG = 1.7;
+
+export function floorWestZ() {
+  return -SLAB_OVERHANG;
+}
+
 export function addFloor(floor, p) {
   const width = p.outerX * 2 + 2.4;
-  const depth = p.length + 3.4;
-  // Slab top is the floor. Keep it off the ground plane.
+  const depth = p.length + SLAB_OVERHANG * 2;
+  // Top of the slab is y = 0. The dirt plane sits just under it.
   const slab = new THREE.BoxGeometry(width, 0.1, depth);
   slab.translate(0, -0.05, p.length / 2);
   floor.push(slab);
 
-  const ground = new THREE.PlaneGeometry(1000, 1000);
+  // Bigger than this and the far plane clips it into a circle.
+  const ground = new THREE.PlaneGeometry(240, 240);
   put(floor, ground, 0, -0.11, p.length / 2, -Math.PI / 2, 0, 0);
 }

@@ -5,8 +5,8 @@ const CELL = 256;
 const COLS = 8;
 const SAMPLE = 160;
 
-// Jewel tones, sRGB. The pane shader converts these to linear. No pale grisaille hue:
-// a near-white wedge read as empty glass.
+// sRGB jewel tones. The pane shader converts them. Skip pale grisaille:
+// a near-white wedge read as a hole.
 const PALETTES = [
   ['#7a1a26', '#1c3470', '#b8892a'],
   ['#1a4a70', '#6a2448', '#2a6032'],
@@ -84,7 +84,7 @@ function voronoi(px, py) {
   return [f1, f2, id];
 }
 
-// Same field the shader uses, so the coloured light on the stone is this window.
+// Same breakup the shader uses, so the light on the stone matches the pane.
 function field(u, v, seed, aspect, rose) {
   const layout = Math.abs(Math.floor(seed)) % 4;
   if (rose) {
@@ -157,7 +157,7 @@ function quarryByte(u, v, seed, aspect, rose, pal) {
   return col.map((channel) => Math.round(Math.min(1, Math.max(0, 0.035 + channel * came)) * 255));
 }
 
-// Same order as listOpenings. The light shader looks up this rect.
+// Same order as listOpenings. The light shader indexes this rect.
 export function paintGlassAtlas(openings) {
   if (openings.length > COLS * COLS) {
     throw new Error('Glass atlas is full (' + openings.length + ' windows)');
@@ -220,7 +220,7 @@ function paintCell(ctx, col, row, opening) {
     sum[1] += color[1];
     sum[2] += color[2];
   }
-  // Palette entries are sRGB. The light buffer is linear.
+  // Palette is sRGB. The light buffer wants linear.
   return toLinear(sum.map((channel) => channel / pal.length));
 }
 
@@ -448,11 +448,11 @@ void main() {
 
   float facing = clamp(dot(normalize(vWinN), normalize(uPhoton)), 0.0, 1.0);
   float sky = smoothstep(0.02, 0.22, uElevation);
-  // Shade stays readable. A window the sun is behind is clearly brighter.
+  // Shade stays readable. A window with the sun behind it goes brighter.
   float bright = (1.05 + 1.05 * facing * sky) * (0.92 + 0.08 * vGain);
   col *= bright;
   col *= mix(vec3(0.94, 0.95, 1.0), uSunColor, facing);
-  // Deep reds and blues were falling to black. Lift those, and leave the sunlit panes alone.
+  // Deep reds and blues were crushing to black. Lift those, leave the sunlit ones.
   col = mix(col, sqrt(max(col, vec3(0.0))), (1.0 - facing) * 0.62);
 
   vec3 viewDir = normalize(cameraPosition - vWorld);
@@ -554,7 +554,7 @@ function lancetGeometry(opening) {
   return geo;
 }
 
-// Same outline as the stone hole, pulled in a couple of cm.
+// Same outline as the stone hole, pulled in a couple of cm so it doesn't z-fight.
 function insetLancet(opening, margin) {
   const span = opening.width;
   const jamb = opening.jamb - opening.sill;

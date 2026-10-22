@@ -81,7 +81,8 @@ button[aria-pressed='true'] {
   color: #ffb4a8;
 }
 
-button:focus-visible {
+button:focus-visible,
+input[type='range']:focus-visible {
   outline: 2px solid #f3d7a1;
   outline-offset: 2px;
 }

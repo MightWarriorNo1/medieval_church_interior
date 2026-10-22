@@ -1,7 +1,7 @@
 const CROWN_LO = 24;
 const CROWN_HI = 32;
 
-// Metres. Crown likes 25–30 on a 12 m nave.
+// metres. 25–30 looks right on a 12 m nave.
 export const DEFAULTS = {
   bays: 7,
   bayLength: 6.6,
@@ -27,7 +27,7 @@ export const DEFAULTS = {
   eyeHeight: 1.65,
 };
 
-// Below half the span the arch stops being pointed and folds into a valley.
+// Under half the span the pointed arch folds inside out.
 export function lowestCrown(naveWidth, spring = DEFAULTS.vaultSpring) {
   const width = clamp(naveWidth, 10, 14);
   return spring + width / 2 + 0.35;
@@ -57,7 +57,7 @@ export function resolveParams(partial = {}) {
   p.vaultRise = p.vaultCrown - p.vaultSpring;
   p.wallArchRise = p.wallArchApex - p.vaultSpring;
   p.aisleRise = p.aisleCrown - p.aisleSpring;
-  // Longitudinal aisle arch spans a full bay, so the rise can't be shorter than that.
+  // The long aisle arch spans a whole bay. Rise shorter than that goes flat.
   const aisleAlong = Math.max(p.bayLength / 2 + 0.08, p.aisleRise * 0.72);
   p.aisleWallApex = p.aisleSpring + aisleAlong;
 

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { AISLE_LIGHT, EAST_LIGHTS, EAST_OCULUS, lightJamb } from './ends.js';
 
-// upper.js cuts the wall from this. Move a hole here, not in the wall code.
+// upper.js cuts whatever this returns. Move a window here.
 export function clerestorySpec(p, side, bay) {
   const zc = (bay + 0.5) * p.bayLength;
   const face = side * p.naveHalf + side * 0.06;
@@ -24,7 +24,7 @@ export function clerestorySpec(p, side, bay) {
     rise,
     planeX: face + side * 0.32,
     normal: new THREE.Vector3(-side, 0, 0),
-    // Glass is built in XY, then rotateY(90°). Local +X lands on world -Z.
+    // Glass is built in XY and rotateY(90). Local +X becomes world -Z.
     axisU: new THREE.Vector3(0, 0, -1),
   });
 }

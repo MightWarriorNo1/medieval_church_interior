@@ -1,17 +1,14 @@
 import * as THREE from 'three';
 
-const FRONTAL = 0x6e2430;
-const LINEN = 0xe4dcc6;
+// Frontal is the hanging panel. Linen is the top cloth. Both stay matte.
+export const frontalMat = new THREE.MeshStandardMaterial({
+  color: 0x6e2430,
+  roughness: 1,
+  metalness: 0,
+});
 
-// Frontal hangs on the altar. Linen is the cloth on top. Both stay matte.
-export function createClothMaterial(which = 'frontal') {
-  const linen = which === 'linen';
-  return new THREE.MeshStandardMaterial({
-    color: linen ? LINEN : FRONTAL,
-    roughness: 1,
-    metalness: 0,
-  });
-}
-
-export const frontalMat = createClothMaterial('frontal');
-export const linenMat = createClothMaterial('linen');
+export const linenMat = new THREE.MeshStandardMaterial({
+  color: 0xe4dcc6,
+  roughness: 1,
+  metalness: 0,
+});

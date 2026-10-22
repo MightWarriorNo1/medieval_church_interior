@@ -5,6 +5,9 @@ const CORE_R = 0.38;
 const MAJOR_R = 0.16;
 const MINOR_R = 0.09;
 
+// Walk collision uses this. The round base fits inside it.
+export const PIER_PLINTH = 1.7;
+
 function baseProfile() {
   return [
     new THREE.Vector2(0.02, 0),
@@ -56,7 +59,7 @@ function addNavePier(stone, p, side, z) {
   const baseTop = plinthH + baseH;
   const capitalBottom = p.arcadeImpost - abacusH - capitalH;
 
-  putBox(stone, 1.7, plinthH, 1.7, x, 0, z);
+  putBox(stone, PIER_PLINTH, plinthH, PIER_PLINTH, x, 0, z);
 
   const base = new THREE.LatheGeometry(baseProfile(), 22);
   base.translate(x, plinthH, z);

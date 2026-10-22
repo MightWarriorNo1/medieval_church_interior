@@ -25,7 +25,7 @@ float woodGrain(vec3 p) {
 }
 `;
 
-// `along` is the board direction in world space. Pews pass +X.
+// along is the board direction in world space. Pews run along +X.
 export function createWoodMaterial(along = new THREE.Vector3(1, 0, 0)) {
   const axis = along.clone().normalize();
   const material = new THREE.MeshStandardMaterial({

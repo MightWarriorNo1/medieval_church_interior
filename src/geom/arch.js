@@ -1,11 +1,11 @@
 import * as THREE from 'three';
 
-// x is measured from the crown. Each half is a circle centred past the opposite spring.
+// x is from the crown. Each half is a circle whose centre sits past the other spring.
 export function pointedArchHeight(x, span, rise) {
   const s = span / 2;
   const ax = Math.abs(x);
   if (!(span > 0) || ax >= s - 1e-4) return 0;
-  // Keep the centre past the crown. Any closer and the arch turns inside out.
+  // Centre has to stay past the crown or the arch turns inside out.
   const h = Math.max(rise, s, 0.05);
   const cx = (h * h - s * s) / (2 * s);
   const radius = Math.hypot(cx, h);
@@ -14,7 +14,7 @@ export function pointedArchHeight(x, span, rise) {
   return Math.sqrt(Math.max(0, radius * radius - dx * dx));
 }
 
-// origin sits on the middle of the springing line. xAxis points at the positive spring.
+// origin is mid-spring. xAxis points at the + spring.
 export function pointedArchPoints(origin, xAxis, yAxis, span, rise, segments = 28) {
   const points = [];
   const s = span / 2;
@@ -28,7 +28,7 @@ export function pointedArchPoints(origin, xAxis, yAxis, span, rise, segments = 2
   return points;
 }
 
-// Two pointed barrels. The groin is the higher of the two.
+// Two pointed barrels. Groin is whichever is higher.
 export function naveVaultY(x, z, bayCenter, p) {
   const yAcross =
     p.vaultSpring + pointedArchHeight(x, p.naveWidth, p.vaultRise);
@@ -53,7 +53,7 @@ export function aisleVaultY(x, z, bayCenter, p, side) {
   return Math.max(yAcross, yAlong);
 }
 
-// Nave arch, then the step down over the aisle roofs.
+// Nave arch, then the drop onto the aisle roofs.
 export function sectionTop(x, p) {
   const ax = Math.abs(x);
   if (ax >= p.outerX - 1e-3) return 0;

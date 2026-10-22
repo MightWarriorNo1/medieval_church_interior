@@ -8,14 +8,14 @@ const AISLE_HALF = 1.2;
 const PIER_REACH = 0.85;
 const PIER_GAP = 0.42;
 
-// Uneven gaps. Index 14 gets an extra 0.7, which reads as a crossing.
+// Uneven on purpose. Row 14 gets an extra 0.7 so it reads as a crossing.
 const GAPS = [1.02, 1.15, 1.0, 1.09, 1.2, 1.04, 1.12, 1.07];
 const NUDGE = [0, 0.04, -0.025, 0.015, -0.045, 0.03, -0.01, 0.02];
 
-// Grain follows the seat, which is along X.
+// Seats run along X, so the grain does too.
 export const woodMat = createWoodMaterial(new THREE.Vector3(1, 0, 0));
 
-// Back board sits on local -Z, which stays west. Don't rotate these.
+// Back board is local -Z, which is west. Don't yaw these.
 function pewGeometry(length) {
   const parts = [];
   const half = length / 2;
@@ -31,10 +31,10 @@ function spotList(p) {
   const length = outerFace - AISLE_HALF - END_T;
   const span = (length + END_T) / 2;
   const center = AISLE_HALF + span;
-  // East bay stays empty.
+  // Leave the east bay clear for the steps.
   const eastClear = p.length - p.bayLength - 1.6;
   const hz = (SEAT_D + 0.1) / 2;
-  // End boards stick out past the seat by END_T.
+  // End boards overhang the seat by END_T.
   const hx = length / 2 + END_T;
   const spots = [];
 

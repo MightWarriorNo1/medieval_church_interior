@@ -130,7 +130,7 @@ function addNaveRibs(stone, p, bay) {
 
   const bossRadius = 0.2;
   const boss = new THREE.SphereGeometry(bossRadius, 14, 10);
-  // Drop it a touch so the sphere doesn't cut the web.
+  // Dropped a bit so the sphere doesn't poke through the web.
   const bossCenter = p.vaultCrown - bossRadius - 0.03;
   boss.translate(0, bossCenter, zc);
   stone.push(boss);
