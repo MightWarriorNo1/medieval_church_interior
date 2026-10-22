@@ -6,6 +6,7 @@ import { DEFAULTS, minCrown, resolveParams } from './params.js';
 import { woodMat } from './furniture/pews.js';
 import { frontalMat, linenMat } from './materials/cloth.js';
 import { bookMat, postMat } from './furniture/sanctuary.js';
+import { brassMat } from './furniture/candles.js';
 import { listOpenings } from './systems/openings.js';
 import { floorWestZ, PORTAL } from './systems/ends.js';
 import { PIER_PLINTH } from './systems/piers.js';
@@ -220,6 +221,7 @@ function rebuild() {
     next.add(floorMesh);
     next.add(parts.wood);
     next.add(parts.sanctuary);
+    next.add(parts.candles);
 
     const glass = buildGlassMeshes(nextOpenings);
     next.add(glass.group);
@@ -559,6 +561,7 @@ if (import.meta.hot) {
     linenMat.dispose();
     bookMat.dispose();
     postMat.dispose();
+    brassMat.dispose();
     if (glassMaterial) glassMaterial.dispose();
     if (atlas) atlas.dispose();
     stoneMat.dispose();
