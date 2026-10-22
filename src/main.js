@@ -6,7 +6,7 @@ import { DEFAULTS, minCrown, resolveParams } from './params.js';
 import { woodMat } from './furniture/pews.js';
 import { frontalMat, linenMat } from './materials/cloth.js';
 import { bookMat, postMat } from './furniture/sanctuary.js';
-import { brassMat, flameMat } from './furniture/candles.js';
+import { brassMat, flameMat, flickerCandles, setCandleQuality } from './furniture/candles.js';
 import { listOpenings } from './systems/openings.js';
 import { floorWestZ, PORTAL } from './systems/ends.js';
 import { PIER_PLINTH } from './systems/piers.js';
@@ -184,6 +184,7 @@ function applySun() {
   const chosen = packWindows(openings, state.photon, quality, windowUniforms);
   const beamCount = quality === 'high' ? 6 : 3;
   aimShafts(shafts.beamMeshes, chosen.slice(0, beamCount), state.photon, state.color);
+  setCandleQuality(root && root.getObjectByName('candles'), quality);
   showParams();
 }
 
@@ -548,6 +549,7 @@ renderer.setAnimationLoop((now) => {
       camera.lookAt(controls.target);
     }
   }
+  if (root) flickerCandles(root.getObjectByName('candles'), now * 0.001);
   renderer.render(scene, camera);
 });
 
