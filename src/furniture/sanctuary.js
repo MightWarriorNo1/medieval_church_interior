@@ -34,7 +34,15 @@ function addSteps(stone, p) {
     const west = eastFace - TOP_DEPTH - (2 - i) * TREAD;
     const y = 0.01 + i * RISE;
     putBox(stone, width, RISE, depth, 0, y, west + depth / 2);
-    if (i === 2) top = { west, east: eastFace, y: y + RISE };
+    if (i === 2) {
+      top = {
+        west,
+        east: eastFace,
+        y: y + RISE,
+        halfW,
+        bottomWest: eastFace - TOP_DEPTH - 2 * TREAD,
+      };
+    }
   }
   return top;
 }
@@ -60,6 +68,14 @@ export function addSanctuary(stone, p) {
   cloth.add(clothBox(ALTAR_W + 0.1, 0.022, ALTAR_D + 0.1, 0, top.y + ALTAR_H + 0.004, z - 0.04, linenMat));
   cloth.add(clothBox(ALTAR_W + 0.1, 0.07, 0.02, 0, top.y + ALTAR_H - 0.066, frontZ - 0.04, linenMat));
   cloth.add(lectern(p));
+  // One block for the whole flight. The walk meets the west riser and does not climb.
+  const depth = top.east - top.bottomWest;
+  cloth.userData.blocks = [{
+    x: 0,
+    z: top.bottomWest + depth / 2,
+    hx: top.halfW,
+    hz: depth / 2,
+  }];
   return cloth;
 }
 

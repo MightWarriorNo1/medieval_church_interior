@@ -334,6 +334,13 @@ function clearPews(pos) {
   for (let i = 0; i < blocks.length; i++) pushBox(pos, blocks[i], 0.08);
 }
 
+function clearSteps(pos) {
+  const sanctuary = root && root.getObjectByName('sanctuary');
+  const blocks = sanctuary && sanctuary.userData.blocks;
+  if (!blocks) return;
+  for (let i = 0; i < blocks.length; i++) pushBox(pos, blocks[i], 0.2);
+}
+
 function keepOnFloor(pos) {
   // Pilaster bases stick in past the wall line. 0.9 clears them.
   const limitX = params.outerX - 0.9;
@@ -350,8 +357,10 @@ function keepOnFloor(pos) {
   boxIn();
   clearPiers(pos);
   clearPews(pos);
-  // A pew shove can land you back in a pier, and a pier shove can leave you in the west wall.
+  clearSteps(pos);
+  // A shove can land you back in a pier, or up on the steps.
   clearPiers(pos);
+  clearSteps(pos);
   boxIn();
 }
 
