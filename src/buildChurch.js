@@ -3,6 +3,7 @@ import { addEnds, addFloor } from './systems/ends.js';
 import { addPews } from './furniture/pews.js';
 import { addSanctuary } from './furniture/sanctuary.js';
 import { addCandles } from './furniture/candles.js';
+import { addFoliage } from './systems/foliage.js';
 import { addPiers } from './systems/piers.js';
 import { addUpperWalls } from './systems/upper.js';
 import { addVaults } from './systems/vault.js';
@@ -20,6 +21,7 @@ export function buildChurch(p) {
 
   addFloor(floor, p);
   addPiers(stone, p);
+  addFoliage(stone, p);
   addArcade(stone, p);
   addVaults(stone, p);
   addUpperWalls(stone, dark, p);
