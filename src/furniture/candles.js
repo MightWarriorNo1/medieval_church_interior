@@ -10,6 +10,7 @@ export const brassMat = new THREE.MeshStandardMaterial({
 const flameMat = new THREE.MeshBasicMaterial({ color: 0xffc56a });
 const FLAME_Y = 0.45;
 const MAX_LIGHTS = 8;
+const PIER_LIGHT = 10;
 
 export { flameMat };
 
@@ -83,63 +84,51 @@ export function addCandles(p) {
 
   const flameGeo = new THREE.ConeGeometry(0.018, 0.08, 7);
   flameGeo.translate(0, 0.04, 0);
-  const lights = [];
   const flames = [];
+  const lights = [];
   for (let i = 0; i < spots.length; i += 1) {
     const spot = spots[i];
-    const altar = i < 2;
     const flame = new THREE.Mesh(flameGeo, flameMat);
     flame.name = 'flame';
     flame.position.set(spot.x, spot.y + FLAME_Y, spot.z);
-    flame.userData.phase = i * 1.7;
-    flame.userData.rate = 7.2 + (i % 4) * 0.85;
     group.add(flame);
     flames.push(flame);
     if (i >= MAX_LIGHTS) continue;
-    // Altar lights stay short so the pool sits on the cloth instead of the wall.
-    const light = new THREE.PointLight(
-      0xffb15a,
-      altar ? 28 : 9,
-      altar ? 1.7 : 3.2,
-      2,
-    );
-    light.position.copy(flame.position);
-    if (altar) {
-      light.position.y -= 0.18;
-      light.position.z -= 0.28;
-    }
+    const altar = i < 2;
+    const light = new THREE.PointLight(0xffb15a, altar ? 22 : PIER_LIGHT, altar ? 1.55 : 3.4, 2);
+    if (altar) light.position.set(spot.x, spot.y + 0.24, spot.z - 0.72);
+    else light.position.copy(flame.position);
     light.castShadow = false;
     light.userData.altar = altar;
     light.userData.base = light.intensity;
     group.add(light);
     lights.push(light);
-    flame.userData.light = light;
   }
-  group.userData.lights = lights;
   group.userData.flames = flames;
+  group.userData.lights = lights;
   return group;
 }
 
 export function flickerCandles(group, time) {
-  const flames = group && group.userData.flames;
-  if (!flames) return;
+  if (!group || !group.userData.flames) return;
+  const flames = group.userData.flames;
   for (let i = 0; i < flames.length; i += 1) {
-    const flame = flames[i];
-    const wave = Math.sin(time * flame.userData.rate + flame.userData.phase);
-    const tall = 0.84 + 0.18 * wave;
-    const wide = 0.94 + 0.07 * Math.sin(time * flame.userData.rate * 1.6 + flame.userData.phase);
-    flame.scale.set(wide, tall, wide);
-    const light = flame.userData.light;
-    if (light && light.visible) light.intensity = light.userData.base * (0.76 + 0.24 * wave);
+    const pulse = 0.86 + 0.16 * Math.sin(time * 8.5 + i * 1.9) + 0.06 * Math.sin(time * 21 + i * 0.7);
+    flames[i].scale.set(0.94 + pulse * 0.06, pulse, 0.94 + pulse * 0.06);
+  }
+  const lights = group.userData.lights;
+  for (let i = 0; i < lights.length; i += 1) {
+    const light = lights[i];
+    if (!light.visible) continue;
+    const pulse = 0.84 + 0.16 * Math.sin(time * 7.5 + i * 2.2);
+    light.intensity = light.userData.base * pulse;
   }
 }
 
-export function setCandleQuality(group, quality) {
-  const lights = group && group.userData.lights;
-  if (!lights) return;
-  const fast = quality === 'low';
-  for (let i = 0; i < lights.length; i += 1) {
-    const light = lights[i];
-    light.visible = !fast || light.userData.altar;
+export function setCandleQuality(group, mode) {
+  if (!group || !group.userData.lights) return;
+  const altarOnly = mode !== 'high';
+  for (const light of group.userData.lights) {
+    light.visible = altarOnly ? light.userData.altar === true : true;
   }
 }

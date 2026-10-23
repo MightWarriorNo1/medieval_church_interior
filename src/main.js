@@ -549,7 +549,7 @@ renderer.setAnimationLoop((now) => {
       camera.lookAt(controls.target);
     }
   }
-  if (root) flickerCandles(root.getObjectByName('candles'), now * 0.001);
+  flickerCandles(root && root.getObjectByName('candles'), now * 0.001);
   renderer.render(scene, camera);
 });
 
