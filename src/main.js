@@ -14,6 +14,7 @@ import { createWindowUniforms, packWindows, sunAt } from './lighting/sun.js';
 import { paintGlassAtlas, buildGlassMeshes } from './materials/glass.js';
 import { createStoneMaterial } from './materials/stone.js';
 import { aimShafts, createShafts, layoutDust } from './lighting/shafts.js';
+import { createPost } from './post.js';
 
 const canvas = document.getElementById('view');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -72,6 +73,7 @@ const darkMat = new THREE.MeshStandardMaterial({
 
 const shafts = createShafts(windowUniforms);
 scene.add(shafts.group);
+const post = createPost(renderer, scene, camera);
 
 let root = null;
 let atlas = null;
@@ -474,6 +476,7 @@ function resize() {
   camera.updateProjectionMatrix();
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
   renderer.setSize(w, h, false);
+  post.setSize(w, h, renderer.getPixelRatio());
 }
 
 const unlisten = [];
@@ -550,7 +553,7 @@ renderer.setAnimationLoop((now) => {
     }
   }
   flickerCandles(root && root.getObjectByName('candles'), now * 0.001);
-  renderer.render(scene, camera);
+  post.render();
 });
 
 if (import.meta.hot) {
@@ -576,6 +579,7 @@ if (import.meta.hot) {
     for (const mesh of shafts.beamMeshes) mesh.material.dispose();
     if (beamGeo) beamGeo.dispose();
     controls.dispose();
+    post.dispose();
     renderer.dispose();
   });
 }
