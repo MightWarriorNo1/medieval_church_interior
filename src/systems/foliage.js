@@ -23,8 +23,9 @@ export function crocketGeometry() {
 }
 
 // `outward` is the xz angle. 0 points along +X.
-export function placeCrocket(list, source, x, y, z, outward = 0) {
+export function placeCrocket(list, source, x, y, z, outward = 0, scale = 1) {
   const geo = source.clone();
+  if (scale !== 1) geo.scale(scale, scale, scale);
   geo.rotateY(Math.PI / 2 - outward);
   geo.translate(x, y, z);
   list.push(geo);
@@ -45,8 +46,10 @@ const RING = 8;
 
 export function addFoliage(stone, p) {
   const source = crocketGeometry();
-  const y = p.arcadeImpost - 0.16 - 0.74 + 0.36;
-  const radius = 0.78;
+  // Sit the ring low enough that the hooks cross the abacus edge seen from the aisle.
+  const y = p.arcadeImpost - 0.16 - 0.74 + 0.2;
+  const radius = 0.68;
+  const scale = 1.45;
   for (let i = 0; i <= p.bays; i += 1) {
     const z = i * p.bayLength;
     for (const side of [-1, 1]) {
@@ -60,6 +63,7 @@ export function addFoliage(stone, p) {
           y,
           z + Math.sin(outward) * radius,
           outward,
+          scale,
         );
       }
     }
