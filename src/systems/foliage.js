@@ -30,6 +30,16 @@ export function placeCrocket(list, source, x, y, z, outward = 0) {
   list.push(geo);
 }
 
+// Lay the stalk out from the boss and hook the tip downward.
+function placeBossLeaf(list, source, x, y, z, outward, scale) {
+  const geo = source.clone();
+  geo.scale(scale, scale, scale);
+  geo.rotateX(Math.PI / 2);
+  geo.rotateY(Math.PI / 2 - outward);
+  geo.translate(x, y, z);
+  list.push(geo);
+}
+
 // Eight leaves around the bell. The half-step keeps them off the older sphere leaves.
 const RING = 8;
 
@@ -54,5 +64,35 @@ export function addFoliage(stone, p) {
       }
     }
   }
+  addBossClusters(stone, p, source);
   source.dispose();
+}
+
+// Nave bosses are the larger spheres. Aisle bosses take a tighter cluster.
+function addBossClusters(stone, p, source) {
+  for (let bay = 0; bay < p.bays; bay += 1) {
+    const z = (bay + 0.5) * p.bayLength;
+    const naveY = p.vaultCrown - 0.23;
+    placeCluster(stone, source, 0, naveY, z, 0.24, 0, 5, 0.5);
+    for (const side of [-1, 1]) {
+      const x = side * (p.naveHalf + p.aisleWidth / 2);
+      const aisleY = p.aisleCrown - 0.15;
+      placeCluster(stone, source, x, aisleY, z, 0.15, 0, 4, 0.34);
+    }
+  }
+}
+
+function placeCluster(stone, source, x, y, z, radius, drop, count, scale) {
+  for (let k = 0; k < count; k += 1) {
+    const outward = ((k + 0.5) / count) * Math.PI * 2;
+    placeBossLeaf(
+      stone,
+      source,
+      x + Math.cos(outward) * radius,
+      y + drop,
+      z + Math.sin(outward) * radius,
+      outward,
+      scale,
+    );
+  }
 }
