@@ -30,21 +30,29 @@ export function placeCrocket(list, source, x, y, z, outward = 0) {
   list.push(geo);
 }
 
+// Eight leaves around the bell. The half-step keeps them off the older sphere leaves.
+const RING = 8;
+
 export function addFoliage(stone, p) {
   const source = crocketGeometry();
-  const side = 1;
-  const z = p.bayLength * 2;
-  const x = side * p.naveHalf;
-  const capitalBottom = p.arcadeImpost - 0.16 - 0.74;
-  const outward = Math.PI / 12;
+  const y = p.arcadeImpost - 0.16 - 0.74 + 0.36;
   const radius = 0.78;
-  placeCrocket(
-    stone,
-    source,
-    x + Math.cos(outward) * radius,
-    capitalBottom + 0.36,
-    z + Math.sin(outward) * radius,
-    outward,
-  );
+  for (let i = 0; i <= p.bays; i += 1) {
+    const z = i * p.bayLength;
+    for (const side of [-1, 1]) {
+      const x = side * p.naveHalf;
+      for (let k = 0; k < RING; k += 1) {
+        const outward = ((k + 0.5) / RING) * Math.PI * 2;
+        placeCrocket(
+          stone,
+          source,
+          x + Math.cos(outward) * radius,
+          y,
+          z + Math.sin(outward) * radius,
+          outward,
+        );
+      }
+    }
+  }
   source.dispose();
 }
