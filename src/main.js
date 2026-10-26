@@ -12,7 +12,7 @@ import { floorWestZ, PORTAL } from './systems/ends.js';
 import { PIER_PLINTH } from './systems/piers.js';
 import { createWindowUniforms, packWindows, sunAt } from './lighting/sun.js';
 import { paintGlassAtlas, buildGlassMeshes } from './materials/glass.js';
-import { createStoneMaterial } from './materials/stone.js';
+import { createStoneMaterial, setStoneQuality } from './materials/stone.js';
 import { aimShafts, createShafts, layoutDust } from './lighting/shafts.js';
 import { createPost } from './post.js';
 
@@ -81,6 +81,7 @@ let glassMaterial = null;
 let openings = [];
 let params = resolveParams(DEFAULTS);
 let quality = 'high';
+let stoneMode = 'high';
 let hour = 0.78;
 
 const baysInput = document.getElementById('bays');
@@ -187,6 +188,27 @@ function applySun() {
   const beamCount = quality === 'high' ? 6 : 3;
   aimShafts(shafts.beamMeshes, chosen.slice(0, beamCount), state.photon, state.color);
   setCandleQuality(root && root.getObjectByName('candles'), quality);
+  post.setQuality(quality);
+  if (stoneMode !== quality) {
+    stoneMode = quality;
+    setStoneQuality(quality);
+    stoneMat.needsUpdate = true;
+  }
+  const shadowSize = quality === 'high' ? 2048 : 512;
+  if (sun.shadow.mapSize.x !== shadowSize) {
+    sun.shadow.mapSize.set(shadowSize, shadowSize);
+    if (sun.shadow.map) {
+      sun.shadow.map.dispose();
+      sun.shadow.map = null;
+    }
+  }
+  const shadowType = quality === 'high' ? THREE.PCFSoftShadowMap : THREE.BasicShadowMap;
+  if (renderer.shadowMap.type !== shadowType) {
+    renderer.shadowMap.type = shadowType;
+    for (const material of [stoneMat, darkMat, woodMat, frontalMat, linenMat, bookMat, postMat, brassMat]) {
+      material.needsUpdate = true;
+    }
+  }
   showParams();
 }
 
@@ -498,10 +520,12 @@ listen(hourInput, 'input', () => {
 listen(qualityHigh, 'click', () => {
   quality = 'high';
   applySun();
+  resize();
 });
 listen(qualityLow, 'click', () => {
   quality = 'low';
   applySun();
+  resize();
 });
 listen(document.getElementById('view-west'), 'click', () => frame('west'));
 listen(document.getElementById('view-rose'), 'click', () => frame('rose'));
@@ -553,7 +577,9 @@ renderer.setAnimationLoop((now) => {
     }
   }
   flickerCandles(root && root.getObjectByName('candles'), now * 0.001);
-  post.render();
+  // Fast skips the full-frame bloom target. The tone map stays on the renderer.
+  if (quality === 'low') renderer.render(scene, camera);
+  else post.render();
 });
 
 if (import.meta.hot) {

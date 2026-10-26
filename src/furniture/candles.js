@@ -127,8 +127,9 @@ export function flickerCandles(group, time) {
 
 export function setCandleQuality(group, mode) {
   if (!group || !group.userData.lights) return;
-  const altarOnly = mode !== 'high';
+  // Fast mode keeps the flame meshes and drops the point lights.
+  const high = mode === 'high';
   for (const light of group.userData.lights) {
-    light.visible = altarOnly ? light.userData.altar === true : true;
+    light.visible = high;
   }
 }

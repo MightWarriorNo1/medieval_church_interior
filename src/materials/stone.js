@@ -210,6 +210,21 @@ vec3 stoneColor(vec3 p, vec3 n) {
 }
 `;
 
+function stoneVertex(shader) {
+  shader.vertexShader = shader.vertexShader
+    .replace('#include <common>', `#include <common>\nvarying vec3 vWorldPos;\nvarying vec3 vWorldNormal;`)
+    .replace(
+      '#include <worldpos_vertex>',
+      `#include <worldpos_vertex>\nvec4 naveWorld = modelMatrix * vec4(transformed, 1.0);\nvWorldPos = naveWorld.xyz;\nvWorldNormal = normalize(mat3(modelMatrix) * normal);`
+    );
+}
+
+let stoneDetailed = true;
+
+export function setStoneQuality(mode) {
+  stoneDetailed = mode === 'high';
+}
+
 export function createStoneMaterial(uniforms) {
   const material = new THREE.MeshStandardMaterial({
     color: 0xffffff,
@@ -217,32 +232,37 @@ export function createStoneMaterial(uniforms) {
     metalness: 0,
     side: THREE.DoubleSide,
   });
-  material.customProgramCacheKey = () => 'nave-stone-v3';
+  material.customProgramCacheKey = () => (stoneDetailed ? 'nave-stone-v6' : 'nave-stone-v6-fast');
   material.onBeforeCompile = (shader) => {
+    const detailed = stoneDetailed;
     Object.assign(shader.uniforms, uniforms);
-    shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', `#include <common>\nvarying vec3 vWorldPos;\nvarying vec3 vWorldNormal;`)
-      .replace(
-        '#include <worldpos_vertex>',
-        `#include <worldpos_vertex>\nvWorldPos = worldPosition.xyz;\nvWorldNormal = normalize(mat3(modelMatrix) * normal);`
-      );
+    stoneVertex(shader);
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', `#include <common>\n${WINDOW_DECL}\n${STONE_FN}\nvarying vec3 vWorldPos;\nvarying vec3 vWorldNormal;`)
+      .replace(
+        '#include <common>',
+        `#include <common>\n${detailed ? WINDOW_DECL : ''}\n${STONE_FN}\nvarying vec3 vWorldPos;\nvarying vec3 vWorldNormal;`
+      )
       .replace(
         '#include <color_fragment>',
         `#include <color_fragment>\n{\n  vec3 wn = normalize(gl_FrontFacing ? vWorldNormal : -vWorldNormal);\n  diffuseColor.rgb *= stoneColor(vWorldPos, wn);\n}`
       )
       .replace(
         '#include <roughnessmap_fragment>',
-        `#include <roughnessmap_fragment>\nroughnessFactor = mix(0.96, 0.78, stoneHeight(vWorldPos, normalize(gl_FrontFacing ? vWorldNormal : -vWorldNormal)));`
+        detailed
+          ? `#include <roughnessmap_fragment>\nroughnessFactor = mix(0.96, 0.78, stoneHeight(vWorldPos, normalize(gl_FrontFacing ? vWorldNormal : -vWorldNormal)));`
+          : `#include <roughnessmap_fragment>\nroughnessFactor = 0.9;`
       )
       .replace(
         '#include <normal_fragment_maps>',
-        `#include <normal_fragment_maps>\n{\n  vec3 wn = normalize(gl_FrontFacing ? vWorldNormal : -vWorldNormal);\n  float e = 0.065;\n  float h0 = stoneHeight(vWorldPos, wn);\n  float hx = stoneHeight(vWorldPos + vec3(e, 0.0, 0.0), wn) - h0;\n  float hy = stoneHeight(vWorldPos + vec3(0.0, e, 0.0), wn) - h0;\n  float hz = stoneHeight(vWorldPos + vec3(0.0, 0.0, e), wn) - h0;\n  vec3 bumped = normalize(wn - vec3(hx, hy, hz) * 1.8);\n  normal = normalize(mat3(viewMatrix) * bumped);\n}`
+        detailed
+          ? `#include <normal_fragment_maps>\n{\n  vec3 wn = normalize(gl_FrontFacing ? vWorldNormal : -vWorldNormal);\n  float e = 0.065;\n  float h0 = stoneHeight(vWorldPos, wn);\n  float hx = stoneHeight(vWorldPos + vec3(e, 0.0, 0.0), wn) - h0;\n  float hy = stoneHeight(vWorldPos + vec3(0.0, e, 0.0), wn) - h0;\n  float hz = stoneHeight(vWorldPos + vec3(0.0, 0.0, e), wn) - h0;\n  vec3 bumped = normalize(wn - vec3(hx, hy, hz) * 1.8);\n  normal = normalize(mat3(viewMatrix) * bumped);\n}`
+          : '#include <normal_fragment_maps>'
       )
       .replace(
         '#include <lights_fragment_end>',
-        `#include <lights_fragment_end>\n{\n  vec3 wn = normalize(gl_FrontFacing ? vWorldNormal : -vWorldNormal);\n  float sunShadow = 1.0;\n  #if defined( USE_SHADOWMAP ) && NUM_DIR_LIGHT_SHADOWS > 0\n    sunShadow = getShadow( directionalShadowMap[0], directionalLightShadows[0].shadowMapSize, directionalLightShadows[0].shadowIntensity, directionalLightShadows[0].shadowBias, directionalLightShadows[0].shadowRadius, vDirectionalShadowCoord[0] );\n  #endif\n  reflectedLight.directDiffuse += glassLight(vWorldPos, wn) * sunShadow * 4.0;\n}`
+        detailed
+          ? `#include <lights_fragment_end>\n{\n  vec3 wn = normalize(gl_FrontFacing ? vWorldNormal : -vWorldNormal);\n  float sunShadow = 1.0;\n  #if defined( USE_SHADOWMAP ) && NUM_DIR_LIGHT_SHADOWS > 0\n    sunShadow = getShadow( directionalShadowMap[0], directionalLightShadows[0].shadowMapSize, directionalLightShadows[0].shadowIntensity, directionalLightShadows[0].shadowBias, directionalLightShadows[0].shadowRadius, vDirectionalShadowCoord[0] );\n  #endif\n  reflectedLight.directDiffuse += glassLight(vWorldPos, wn) * sunShadow * 4.0;\n}`
+          : '#include <lights_fragment_end>'
       );
   };
   return material;

@@ -33,7 +33,7 @@ export function createWoodMaterial(along = new THREE.Vector3(1, 0, 0)) {
     roughness: 0.72,
     metalness: 0,
   });
-  material.customProgramCacheKey = () => 'nave-wood-v2';
+  material.customProgramCacheKey = () => 'nave-wood-v3';
   material.onBeforeCompile = (shader) => {
     shader.uniforms.uWoodA = { value: new THREE.Color(DARK) };
     shader.uniforms.uWoodB = { value: new THREE.Color(LIGHT) };
@@ -42,7 +42,7 @@ export function createWoodMaterial(along = new THREE.Vector3(1, 0, 0)) {
       .replace('#include <common>', `#include <common>\nvarying vec3 vWorldPos;`)
       .replace(
         '#include <worldpos_vertex>',
-        `#include <worldpos_vertex>\nvWorldPos = worldPosition.xyz;`
+        `#include <worldpos_vertex>\nvec4 naveWorld = modelMatrix * vec4(transformed, 1.0);\nvWorldPos = naveWorld.xyz;`
       );
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', `#include <common>\n${WOOD_FN}\nvarying vec3 vWorldPos;`)
