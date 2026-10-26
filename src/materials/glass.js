@@ -461,6 +461,8 @@ void main() {
   col += vec3(0.22, 0.24, 0.26) * sheen * (0.08 + 0.16 * facing);
 
   gl_FragColor = vec4(col, 1.0);
+  #include <tonemapping_fragment>
+  #include <colorspace_fragment>
 }
 `;
 

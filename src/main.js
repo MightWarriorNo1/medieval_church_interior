@@ -5,7 +5,7 @@ import { mergeParts } from './geom/mesh.js';
 import { DEFAULTS, minCrown, resolveParams } from './params.js';
 import { woodMat } from './furniture/pews.js';
 import { frontalMat, linenMat } from './materials/cloth.js';
-import { bookMat, postMat, stepHeight } from './furniture/sanctuary.js';
+import { bookMat, stepHeight } from './furniture/sanctuary.js';
 import { brassMat, flameMat, flickerCandles, setCandleQuality } from './furniture/candles.js';
 import { listOpenings } from './systems/openings.js';
 import { floorWestZ, PORTAL } from './systems/ends.js';
@@ -205,7 +205,7 @@ function applySun() {
   const shadowType = quality === 'high' ? THREE.PCFSoftShadowMap : THREE.BasicShadowMap;
   if (renderer.shadowMap.type !== shadowType) {
     renderer.shadowMap.type = shadowType;
-    for (const material of [stoneMat, darkMat, woodMat, frontalMat, linenMat, bookMat, postMat, brassMat]) {
+    for (const material of [stoneMat, darkMat, woodMat, frontalMat, linenMat, bookMat, brassMat]) {
       material.needsUpdate = true;
     }
   }
@@ -396,6 +396,21 @@ function clearSanctuary(pos) {
   }
 }
 
+function blockWalk(pos) {
+  clearPiers(pos);
+  clearPews(pos);
+  clearCandles(pos);
+  clearSanctuary(pos);
+  clearJambs(pos);
+}
+
+function clearCandles(pos) {
+  const candles = root && root.getObjectByName('candles');
+  const blocks = candles && candles.userData.blocks;
+  if (!blocks) return;
+  for (let i = 0; i < blocks.length; i++) pushBox(pos, blocks[i], 0.06);
+}
+
 function clearJambs(pos) {
   const x = PORTAL.width / 2 + 0.28;
   pushCircle(pos, -x, 0.15, 0.2);
@@ -417,15 +432,9 @@ function keepOnFloor(pos) {
   };
 
   boxIn();
-  clearPiers(pos);
-  clearPews(pos);
-  clearSanctuary(pos);
-  clearJambs(pos);
+  blockWalk(pos);
   // One push can drop you into the thing you just left.
-  clearPiers(pos);
-  clearPews(pos);
-  clearSanctuary(pos);
-  clearJambs(pos);
+  blockWalk(pos);
   boxIn();
   pos.y = params.eyeHeight + stepHeight(params, pos.x, pos.z);
 }
@@ -592,7 +601,6 @@ if (import.meta.hot) {
     frontalMat.dispose();
     linenMat.dispose();
     bookMat.dispose();
-    postMat.dispose();
     brassMat.dispose();
     flameMat.dispose();
     if (glassMaterial) glassMaterial.dispose();

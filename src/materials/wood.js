@@ -32,7 +32,9 @@ export function createWoodMaterial(along = new THREE.Vector3(1, 0, 0)) {
     roughness: 0.72,
     metalness: 0,
   });
-  material.customProgramCacheKey = () => 'nave-wood-v6';
+  // Two boards with the same key share one program, and the first axis wins.
+  const grainKey = 'wood-' + axis.toArray().map((v) => Math.round(v * 100)).join('.');
+  material.customProgramCacheKey = () => grainKey;
   material.onBeforeCompile = (shader) => {
     shader.uniforms.uWoodA = { value: new THREE.Color(DARK) };
     shader.uniforms.uWoodB = { value: new THREE.Color(LIGHT) };

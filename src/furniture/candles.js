@@ -18,7 +18,7 @@ function lathe(points) {
   return new THREE.LatheGeometry(points.map(([r, y]) => new THREE.Vector2(r, y)), 12);
 }
 
-// Floor stand beside the piers. Wide foot, tall stem, cup at 1.45 m.
+// Wide foot, tall stem, cup around 1.45. Sits inboard of the pier.
 function floorGeometry() {
   return lathe([
     [0, 0],
@@ -32,7 +32,6 @@ function floorGeometry() {
   ]);
 }
 
-// Shorter stick that stands on the altar.
 function altarGeometry() {
   return lathe([
     [0, 0],
@@ -46,7 +45,7 @@ function altarGeometry() {
   ]);
 }
 
-export function addStick(group, geo, x, y, z) {
+function addStick(group, geo, x, y, z) {
   const mesh = new THREE.Mesh(geo, brassMat);
   mesh.name = 'candle';
   mesh.castShadow = true;
@@ -62,10 +61,12 @@ export function addCandles(p, altar) {
   const altarGeo = altarGeometry();
   const floorGeo = floorGeometry();
   const spots = [];
+  const blocks = [];
 
   const put = (geo, x, y, z, small) => {
     addStick(group, geo, x, y, z);
     spots.push({ x, y, z, small });
+    if (!small) blocks.push({ x, z, hx: 0.32, hz: 0.32 });
   };
 
   put(altarGeo, -altar.stickX, altar.altarTop, altar.z, true);
@@ -77,7 +78,7 @@ export function addCandles(p, altar) {
     for (const side of [-1, 1]) put(floorGeo, side * (p.naveHalf - 1.3), 0, z, false);
   }
 
-  group.userData.spots = spots;
+  group.userData.blocks = blocks;
 
   const flames = [];
   const lights = [];
@@ -94,8 +95,8 @@ export function addCandles(p, altar) {
     if (i >= MAX_LIGHTS) continue;
     const onAltar = spot.small;
     const light = new THREE.PointLight(0xffb15a, onAltar ? 22 : PIER_LIGHT, onAltar ? 2.4 : 4.5, 2);
-    // In front of the cross and above the cloth, so both read from the west door.
-    if (onAltar) light.position.set(spot.x, spot.y + 0.55, spot.z - 0.45);
+    // Measured from the stick, 0.45 still sat inside the frontal and the west face stayed dark.
+    if (onAltar) light.position.set(spot.x, spot.y + 0.05, altar.frontZ);
     else light.position.copy(flame.position);
     light.castShadow = false;
     light.userData.altar = onAltar;

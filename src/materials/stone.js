@@ -65,12 +65,12 @@ vec3 glassLight(vec3 worldPos, vec3 worldNormal) {
     }
     float passed = live * approaching * step(0.15, travel) * inside;
     vec3 tint = uWinColor[i].rgb;
-    // Branch on the uniform. A per-pixel test here makes the fetch
-    // divergent, and some phones return black.
+    // Uniform branch, explicit lod. A divergent texture() comes back black on
+    // some phones, and the implicit derivatives warn inside this loop.
     if (uQuality > 0.5) {
       vec4 rect = uWinAtlas[i];
       vec2 auv = mix(rect.xy, rect.zw, clamp(guv, 0.0, 1.0));
-      tint = texture2D(uAtlas, auv).rgb;
+      tint = texture2DLodEXT(uAtlas, auv, 0.0).rgb;
     }
     accum += tint * passed * uWinNormal[i].w;
   }

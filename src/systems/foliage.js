@@ -23,7 +23,7 @@ export function crocketGeometry() {
 }
 
 // `outward` is the xz angle. 0 points along +X.
-export function placeCrocket(list, source, x, y, z, outward = 0, scale = 1) {
+function placeCrocket(list, source, x, y, z, outward = 0, scale = 1) {
   const geo = source.clone();
   if (scale !== 1) geo.scale(scale, scale, scale);
   geo.rotateY(Math.PI / 2 - outward);

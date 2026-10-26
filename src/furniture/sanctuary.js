@@ -1,7 +1,6 @@
 import * as THREE from 'three';
 import { putBox } from '../geom/mesh.js';
 import { woodMat } from './pews.js';
-import { createWoodMaterial } from '../materials/wood.js';
 import { frontalMat, linenMat } from '../materials/cloth.js';
 import { brassMat } from './candles.js';
 
@@ -15,38 +14,34 @@ const ALTAR_H = 1.15;
 const ALTAR_D = 1.55;
 const CLOTH_EXTRA = 0.08;
 
-const postMat = createWoodMaterial(new THREE.Vector3(0, 1, 0));
 const bookMat = new THREE.MeshStandardMaterial({
   color: 0x3a2a1a,
   roughness: 1,
   metalness: 0,
 });
 
-export { postMat, bookMat };
+export { bookMat };
 
-// Each tread is its own box. Stacked boxes z-fight on the riser.
-function addSteps(stone, p) {
+function sanctuarySteps(p) {
+  const east = p.length - WALL_GAP;
   const halfW = p.naveHalf - 0.85 - 0.32;
-  const width = halfW * 2;
-  const eastFace = p.length - WALL_GAP;
-  let top = null;
-
+  const steps = [];
   for (let i = 0; i < 3; i += 1) {
     const depth = i === 2 ? TOP_DEPTH : TREAD;
-    const west = eastFace - TOP_DEPTH - (2 - i) * TREAD;
+    const west = east - TOP_DEPTH - (2 - i) * TREAD;
     const y = 0.01 + i * RISE;
-    putBox(stone, width, RISE, depth, 0, y, west + depth / 2);
-    if (i === 2) {
-      top = {
-        west,
-        east: eastFace,
-        y: y + RISE,
-        halfW,
-        bottomWest: eastFace - TOP_DEPTH - 2 * TREAD,
-      };
-    }
+    steps.push({ depth, west, east, y, top: y + RISE, halfW });
   }
-  return top;
+  return steps;
+}
+
+// Separate boxes. A single stacked box z-fights on the riser.
+function addSteps(stone, p) {
+  const steps = sanctuarySteps(p);
+  for (let i = 0; i < steps.length; i += 1) {
+    const step = steps[i];
+    putBox(stone, step.halfW * 2, RISE, step.depth, 0, step.y, step.west + step.depth / 2);
+  }
 }
 
 function clothBox(w, h, d, x, y, z, material) {
@@ -58,46 +53,44 @@ function clothBox(w, h, d, x, y, z, material) {
 }
 
 export function stepHeight(p, x, z) {
-  const halfW = p.naveHalf - 0.85 - 0.32;
-  if (Math.abs(x) > halfW + 0.05) return 0;
-  const eastFace = p.length - WALL_GAP;
+  const steps = sanctuarySteps(p);
+  if (Math.abs(x) > steps[0].halfW + 0.05) return 0;
   let h = 0;
-  for (let i = 0; i < 3; i += 1) {
-    const depth = i === 2 ? TOP_DEPTH : TREAD;
-    const west = eastFace - TOP_DEPTH - (2 - i) * TREAD;
-    if (z >= west - 0.02 && z <= eastFace) h = 0.01 + (i + 1) * RISE;
+  for (let i = 0; i < steps.length; i += 1) {
+    const step = steps[i];
+    if (z >= step.west - 0.02 && z <= step.east) h = step.top;
   }
   return h;
 }
 
-export function altarLayout(p) {
-  const eastFace = p.length - WALL_GAP;
-  const topWest = eastFace - TOP_DEPTH;
-  const topY = 0.01 + RISE * 3;
-  // Sit toward the east wall, so the desk has room on the west side of the top step.
-  const z = eastFace - 0.2 - ALTAR_D / 2;
+function altarLayout(p) {
+  const top = sanctuarySteps(p)[2];
+  // East of centre on the top step, so the desk still fits to the west.
+  const z = top.east - 0.2 - ALTAR_D / 2;
   const clothH = ALTAR_H + 0.06;
-  const altarTop = topY + (ALTAR_H + clothH) / 2 + 0.03;
+  const altarTop = top.top + (ALTAR_H + clothH) / 2 + 0.03;
   const clothWest = z - (ALTAR_D + CLOTH_EXTRA) / 2;
   return {
     z,
-    topY,
+    topY: top.top,
     altarTop,
     clothH,
+    // Half the cloth is ~0.8. A smaller nudge leaves the light inside the box.
+    frontZ: clothWest - 0.55,
     stickX: 1.3,
-    lectern: { x: 2.6, y: topY, z: clothWest - 0.95 - 0.25 },
+    lectern: { x: 2.6, y: top.top, z: clothWest - 0.95 - 0.25 },
   };
 }
 
 export function addSanctuary(stone, p) {
-  const top = addSteps(stone, p);
+  addSteps(stone, p);
   const cloth = new THREE.Group();
   cloth.name = 'sanctuary';
   const layout = altarLayout(p);
 
-  putBox(stone, ALTAR_W, ALTAR_H, ALTAR_D, 0, top.y, layout.z);
-  // The red cloth wraps the block. The linen is only the top.
-  const clothBottom = top.y + ALTAR_H / 2 - layout.clothH / 2;
+  putBox(stone, ALTAR_W, ALTAR_H, ALTAR_D, 0, layout.topY, layout.z);
+  // Red cloth wraps the block. Linen is only the top.
+  const clothBottom = layout.topY + ALTAR_H / 2 - layout.clothH / 2;
   cloth.add(clothBox(ALTAR_W + 0.12, layout.clothH, ALTAR_D + CLOTH_EXTRA, 0, clothBottom, layout.z, frontalMat));
   cloth.add(clothBox(ALTAR_W + 0.22, 0.03, ALTAR_D + CLOTH_EXTRA + 0.06, 0, clothBottom + layout.clothH, layout.z, linenMat));
   // Cross stands on the east side, toward the wall, the way the reference does.
