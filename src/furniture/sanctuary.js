@@ -7,12 +7,13 @@ import { brassMat } from './candles.js';
 
 const RISE = 0.18;
 const TREAD = 0.74;
-const TOP_DEPTH = 2.3;
+const TOP_DEPTH = 3.5;
 const WALL_GAP = 1.05;
 
-const ALTAR_W = 3.2;
-const ALTAR_H = 1.05;
-const ALTAR_D = 1.2;
+const ALTAR_W = 3.7;
+const ALTAR_H = 1.15;
+const ALTAR_D = 1.55;
+const CLOTH_EXTRA = 0.08;
 
 const postMat = createWoodMaterial(new THREE.Vector3(0, 1, 0));
 const bookMat = new THREE.MeshStandardMaterial({
@@ -56,20 +57,35 @@ function clothBox(w, h, d, x, y, z, material) {
   return mesh;
 }
 
+export function stepHeight(p, x, z) {
+  const halfW = p.naveHalf - 0.85 - 0.32;
+  if (Math.abs(x) > halfW + 0.05) return 0;
+  const eastFace = p.length - WALL_GAP;
+  let h = 0;
+  for (let i = 0; i < 3; i += 1) {
+    const depth = i === 2 ? TOP_DEPTH : TREAD;
+    const west = eastFace - TOP_DEPTH - (2 - i) * TREAD;
+    if (z >= west - 0.02 && z <= eastFace) h = 0.01 + (i + 1) * RISE;
+  }
+  return h;
+}
+
 export function altarLayout(p) {
   const eastFace = p.length - WALL_GAP;
   const topWest = eastFace - TOP_DEPTH;
   const topY = 0.01 + RISE * 3;
-  const z = topWest + TOP_DEPTH / 2;
-  // Cloth is a little taller than the stone, then the linen runner.
-  const altarTop = topY + (ALTAR_H + 1.1) / 2 + 0.03;
+  // Sit toward the east wall, so the desk has room on the west side of the top step.
+  const z = eastFace - 0.2 - ALTAR_D / 2;
+  const clothH = ALTAR_H + 0.06;
+  const altarTop = topY + (ALTAR_H + clothH) / 2 + 0.03;
+  const clothWest = z - (ALTAR_D + CLOTH_EXTRA) / 2;
   return {
     z,
     topY,
     altarTop,
-    stickX: 1.1,
-    // Just west of the cloth, on the top step. The step is only 2.3 m deep.
-    lectern: { x: 2.6, y: topY, z: topWest + 0.22 },
+    clothH,
+    stickX: 1.3,
+    lectern: { x: 2.6, y: topY, z: clothWest - 0.95 - 0.25 },
   };
 }
 
@@ -81,22 +97,23 @@ export function addSanctuary(stone, p) {
 
   putBox(stone, ALTAR_W, ALTAR_H, ALTAR_D, 0, top.y, layout.z);
   // The red cloth wraps the block. The linen is only the top.
-  const clothBottom = top.y + ALTAR_H / 2 - 1.1 / 2;
-  cloth.add(clothBox(ALTAR_W + 0.1, 1.1, ALTAR_D + 0.1, 0, clothBottom, layout.z, frontalMat));
-  cloth.add(clothBox(ALTAR_W + 0.2, 0.03, ALTAR_D + 0.15, 0, clothBottom + 1.1, layout.z, linenMat));
-  cloth.add(altarCross(layout.altarTop, layout.z - 0.2));
+  const clothBottom = top.y + ALTAR_H / 2 - layout.clothH / 2;
+  cloth.add(clothBox(ALTAR_W + 0.12, layout.clothH, ALTAR_D + CLOTH_EXTRA, 0, clothBottom, layout.z, frontalMat));
+  cloth.add(clothBox(ALTAR_W + 0.22, 0.03, ALTAR_D + CLOTH_EXTRA + 0.06, 0, clothBottom + layout.clothH, layout.z, linenMat));
+  // Cross stands on the east side, toward the wall, the way the reference does.
+  cloth.add(altarCross(layout.altarTop, layout.z + 0.28));
 
   const spot = layout.lectern;
   cloth.add(lectern(spot));
-  // Whole flight is one block. You meet the west riser and stay on the floor.
-  const depth = top.east - top.bottomWest;
+  // The treads themselves are walkable. Only the table and the desk stop you.
   cloth.userData.altar = layout;
   cloth.userData.blocks = [
     {
       x: 0,
-      z: top.bottomWest + depth / 2,
-      hx: top.halfW,
-      hz: depth / 2,
+      z: layout.z,
+      hx: (ALTAR_W + 0.12) / 2,
+      hz: (ALTAR_D + CLOTH_EXTRA) / 2,
+      pad: 0.12,
     },
     { x: spot.x, z: spot.z, hx: 0.42, hz: 0.32, pad: 0.12 },
   ];
@@ -120,8 +137,8 @@ function lectern(spot) {
   stand.name = 'lectern';
   stand.position.set(spot.x, 0, spot.z);
   stand.add(clothBox(0.7, 1.2, 0.5, 0, spot.y, 0, woodMat));
-  const book = clothBox(0.55, 0.08, 0.4, 0, spot.y + 1.2, -0.04, bookMat);
-  book.rotation.x = -0.35;
+  const book = clothBox(0.55, 0.08, 0.4, 0, spot.y + 1.2, 0.05, bookMat);
+  book.rotation.x = 0.35;
   stand.add(book);
   return stand;
 }

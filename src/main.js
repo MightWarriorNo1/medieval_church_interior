@@ -5,7 +5,7 @@ import { mergeParts } from './geom/mesh.js';
 import { DEFAULTS, minCrown, resolveParams } from './params.js';
 import { woodMat } from './furniture/pews.js';
 import { frontalMat, linenMat } from './materials/cloth.js';
-import { bookMat, postMat } from './furniture/sanctuary.js';
+import { bookMat, postMat, stepHeight } from './furniture/sanctuary.js';
 import { brassMat, flameMat, flickerCandles, setCandleQuality } from './furniture/candles.js';
 import { listOpenings } from './systems/openings.js';
 import { floorWestZ, PORTAL } from './systems/ends.js';
@@ -416,7 +416,6 @@ function keepOnFloor(pos) {
     if (pos.z < 0.05) pos.x = THREE.MathUtils.clamp(pos.x, -door, door);
   };
 
-  pos.y = params.eyeHeight;
   boxIn();
   clearPiers(pos);
   clearPews(pos);
@@ -428,6 +427,7 @@ function keepOnFloor(pos) {
   clearSanctuary(pos);
   clearJambs(pos);
   boxIn();
+  pos.y = params.eyeHeight + stepHeight(params, pos.x, pos.z);
 }
 
 function setWalk(on) {
