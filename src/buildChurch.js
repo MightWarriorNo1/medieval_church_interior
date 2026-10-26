@@ -28,7 +28,7 @@ export function buildChurch(p) {
   addEnds(stone, p);
   const wood = addPews(p);
   const sanctuary = addSanctuary(stone, p);
-  const candles = addCandles(p);
+  const candles = addCandles(p, sanctuary.userData.altar);
 
   return { stone, dark, floor, wood, sanctuary, candles };
 }

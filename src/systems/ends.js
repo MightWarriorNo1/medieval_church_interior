@@ -13,6 +13,8 @@ export const EAST_LIGHTS = {
   apex: 19.2,
 };
 export const EAST_OCULUS = { y: 22.15, hole: 1.5, ring: 1.32 };
+// The west rose hole is this much larger than the tracery radius.
+export const ROSE_REVEAL = 0.12;
 
 export function lightJamb(sill, apex, spring = 0.67) {
   return sill + (apex - sill) * spring;
@@ -22,7 +24,7 @@ export function addEnds(stone, p) {
   const shape = endShape(p);
   const aisleX = p.naveHalf + p.aisleWidth / 2;
   addPortal(shape, PORTAL.width, PORTAL.jamb, PORTAL.rise);
-  addCircleHole(shape, 0, p.roseCenterY, p.roseRadius + 0.12);
+  addCircleHole(shape, 0, p.roseCenterY, p.roseRadius + ROSE_REVEAL);
   addLancetHole(shape, -aisleX, AISLE_LIGHT.sill, AISLE_LIGHT.apex, AISLE_LIGHT.width);
   addLancetHole(shape, aisleX, AISLE_LIGHT.sill, AISLE_LIGHT.apex, AISLE_LIGHT.width);
 

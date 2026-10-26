@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { AISLE_LIGHT, EAST_LIGHTS, EAST_OCULUS, lightJamb } from './ends.js';
+import { AISLE_LIGHT, EAST_LIGHTS, EAST_OCULUS, lightJamb, ROSE_REVEAL } from './ends.js';
 
 // upper.js cuts whatever this returns. Move a window here.
 export function clerestorySpec(p, side, bay) {
@@ -154,7 +154,7 @@ export function listOpenings(p) {
     3100,
     'oculus',
     new THREE.Vector3(0, EAST_OCULUS.y, p.length + 0.08),
-    EAST_OCULUS.hole - 0.08,
+    EAST_OCULUS.hole,
     new THREE.Vector3(0, 0, -1),
     0.95
   ));
@@ -163,7 +163,7 @@ export function listOpenings(p) {
     4000,
     'rose',
     new THREE.Vector3(0, p.roseCenterY, -0.35),
-    Math.max(0.8, p.roseRadius - 0.04),
+    Math.max(0.8, p.roseRadius + ROSE_REVEAL),
     new THREE.Vector3(0, 0, 1),
     1.2
   ));

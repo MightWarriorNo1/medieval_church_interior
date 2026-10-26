@@ -584,7 +584,7 @@ function insetLancet(opening, margin) {
 }
 
 function circleGeometry(opening) {
-  const radius = Math.max(0.35, opening.radius - 0.04);
+  const radius = Math.max(0.35, opening.radius - 0.015);
   const geo = new THREE.CircleGeometry(radius, 48);
   writeUVs(geo, opening);
   return geo;

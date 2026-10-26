@@ -5,7 +5,8 @@ import { createWoodMaterial } from '../materials/wood.js';
 
 const END_T = 0.09;
 const AISLE_HALF = 1.2;
-const PIER_CLEAR = 0.16;
+// Leave room for the floor candlestick between the pew end and the pier.
+const PIER_CLEAR = 0.9;
 
 // Uneven on purpose, so the row is not one repeated gap.
 const GAPS = [0.98, 1.08, 0.94, 1.04, 1.12, 0.96, 1.06, 1.0];

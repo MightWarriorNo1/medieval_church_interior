@@ -1,49 +1,49 @@
 import * as THREE from 'three';
-import { mergeParts } from '../geom/mesh.js';
 
 export const brassMat = new THREE.MeshStandardMaterial({
-  color: 0xb08d4a,
-  roughness: 0.36,
-  metalness: 0.84,
+  color: 0xa8843a,
+  roughness: 0.35,
+  metalness: 0.72,
+  emissive: 0x3d2c14,
+  emissiveIntensity: 0.22,
 });
 
-const flameMat = new THREE.MeshBasicMaterial({ color: 0xffc56a });
-const FLAME_Y = 0.45;
+const flameMat = new THREE.MeshBasicMaterial({ color: 0xffc478 });
 const MAX_LIGHTS = 8;
 const PIER_LIGHT = 10;
 
 export { flameMat };
 
-// One stick. Base, stem, and cup share this geometry so every later copy is the same mesh.
-function stickGeometry() {
-  const parts = [];
+function lathe(points) {
+  return new THREE.LatheGeometry(points.map(([r, y]) => new THREE.Vector2(r, y)), 12);
+}
 
-  const foot = new THREE.CylinderGeometry(0.07, 0.086, 0.022, 14);
-  foot.translate(0, 0.011, 0);
-  parts.push(foot);
+// Floor stand beside the piers. Wide foot, tall stem, cup at 1.45 m.
+function floorGeometry() {
+  return lathe([
+    [0, 0],
+    [0.3, 0],
+    [0.3, 0.06],
+    [0.08, 0.1],
+    [0.06, 1.3],
+    [0.14, 1.35],
+    [0.14, 1.45],
+    [0, 1.45],
+  ]);
+}
 
-  const neck = new THREE.CylinderGeometry(0.026, 0.046, 0.03, 12);
-  neck.translate(0, 0.034, 0);
-  parts.push(neck);
-
-  const stem = new THREE.CylinderGeometry(0.009, 0.012, 0.34, 8);
-  stem.translate(0, 0.049 + 0.17, 0);
-  parts.push(stem);
-
-  const cup = new THREE.LatheGeometry(
-    [
-      new THREE.Vector2(0.01, 0),
-      new THREE.Vector2(0.016, 0.012),
-      new THREE.Vector2(0.036, 0.03),
-      new THREE.Vector2(0.03, 0.052),
-      new THREE.Vector2(0.014, 0.06),
-    ],
-    10,
-  );
-  cup.translate(0, 0.049 + 0.34, 0);
-  parts.push(cup);
-
-  return mergeParts(parts);
+// Shorter stick that stands on the altar.
+function altarGeometry() {
+  return lathe([
+    [0, 0],
+    [0.16, 0],
+    [0.16, 0.05],
+    [0.05, 0.08],
+    [0.04, 0.55],
+    [0.09, 0.6],
+    [0.09, 0.68],
+    [0, 0.68],
+  ]);
 }
 
 export function addStick(group, geo, x, y, z) {
@@ -56,50 +56,49 @@ export function addStick(group, geo, x, y, z) {
   return mesh;
 }
 
-export function addCandles(p) {
+export function addCandles(p, altar) {
   const group = new THREE.Group();
   group.name = 'candles';
-  const geo = stickGeometry();
+  const altarGeo = altarGeometry();
+  const floorGeo = floorGeometry();
   const spots = [];
 
-  const put = (x, y, z) => {
+  const put = (geo, x, y, z, small) => {
     addStick(group, geo, x, y, z);
-    spots.push({ x, y, z });
+    spots.push({ x, y, z, small });
   };
 
-  const eastFace = p.length - 1.05;
-  const altarZ = eastFace - 1.15 + 0.1;
-  const altarY = 0.01 + 0.18 * 3 + 1.05 + 0.026;
-  put(-0.46, altarY, altarZ);
-  put(0.46, altarY, altarZ);
+  put(altarGeo, -altar.stickX, altar.altarTop, altar.z, true);
+  put(altarGeo, altar.stickX, altar.altarTop, altar.z, true);
 
-  // Aisle side of the plinth, clear of the pier the walk already pushes out.
-  const beside = 1.22;
+  // Inside the nave, against every other pier, clear of the pew end.
   for (let i = 1; i < p.bays; i += 2) {
     const z = i * p.bayLength;
-    for (const side of [-1, 1]) put(side * (p.naveHalf + beside), 0.01, z);
+    for (const side of [-1, 1]) put(floorGeo, side * (p.naveHalf - 1.3), 0, z, false);
   }
 
   group.userData.spots = spots;
 
-  const flameGeo = new THREE.ConeGeometry(0.018, 0.08, 7);
-  flameGeo.translate(0, 0.04, 0);
   const flames = [];
   const lights = [];
   for (let i = 0; i < spots.length; i += 1) {
     const spot = spots[i];
-    const flame = new THREE.Mesh(flameGeo, flameMat);
+    const flame = new THREE.Mesh(new THREE.SphereGeometry(spot.small ? 0.035 : 0.06, 8, 8), flameMat);
     flame.name = 'flame';
-    flame.position.set(spot.x, spot.y + FLAME_Y, spot.z);
+    flame.position.set(spot.x, spot.y + (spot.small ? 0.8 : 1.6), spot.z);
+    flame.userData.sx = 0.8;
+    flame.userData.sy = 1.8;
+    flame.scale.set(0.8, 1.8, 0.8);
     group.add(flame);
     flames.push(flame);
     if (i >= MAX_LIGHTS) continue;
-    const altar = i < 2;
-    const light = new THREE.PointLight(0xffb15a, altar ? 22 : PIER_LIGHT, altar ? 1.55 : 3.4, 2);
-    if (altar) light.position.set(spot.x, spot.y + 0.24, spot.z - 0.72);
+    const onAltar = spot.small;
+    const light = new THREE.PointLight(0xffb15a, onAltar ? 22 : PIER_LIGHT, onAltar ? 2.4 : 4.5, 2);
+    // In front of the cross and above the cloth, so both read from the west door.
+    if (onAltar) light.position.set(spot.x, spot.y + 0.55, spot.z - 0.45);
     else light.position.copy(flame.position);
     light.castShadow = false;
-    light.userData.altar = altar;
+    light.userData.altar = onAltar;
     light.userData.base = light.intensity;
     group.add(light);
     lights.push(light);
@@ -114,7 +113,8 @@ export function flickerCandles(group, time) {
   const flames = group.userData.flames;
   for (let i = 0; i < flames.length; i += 1) {
     const pulse = 0.86 + 0.16 * Math.sin(time * 8.5 + i * 1.9) + 0.06 * Math.sin(time * 21 + i * 0.7);
-    flames[i].scale.set(0.94 + pulse * 0.06, pulse, 0.94 + pulse * 0.06);
+    const flame = flames[i];
+    flame.scale.set(flame.userData.sx * pulse, flame.userData.sy * pulse, flame.userData.sx * pulse);
   }
   const lights = group.userData.lights;
   for (let i = 0; i < lights.length; i += 1) {
